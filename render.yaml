@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Render.com configuration for Sterling Jewellers API
+# Deploy this file in the ROOT of your repository.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: sterling-jewellers-api
+    runtime: node
+    region: frankfurt              # closest to UK customers
+    plan: starter                  # upgrade to standard for production traffic
+
+    # Build
+    rootDir: server
+    buildCommand: npm install && npm run build
+
+    # Start
+    startCommand: npm start
+
+    # Health check — Render uses this to know the service is alive
+    healthCheckPath: /api/health
+
+    # Auto-deploy from main branch
+    autoDeploy: true
+
+    # Node version
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.0"
+      - key: NODE_ENV
+        value: production
+
+      # ── Fill these in on the Render dashboard → Environment tab ──────────
+      - key: PORT
+        value: "10000"             # Render assigns this automatically; keep in sync
+
+      - key: MONGO_URI
+        sync: false                # set via dashboard — never commit the real URI
+
+      - key: JWT_SECRET
+        generateValue: true        # Render generates a secure random string
+
+      - key: JWT_EXPIRES_IN
+        value: "30d"
+
+      - key: CLIENT_URL
+        sync: false                # your Netlify URL, e.g. https://sterling-jewellers.netlify.app
+
+      # Stripe
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      # Cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # Email
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false

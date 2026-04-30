@@ -1,0 +1,107 @@
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface IVariant {
+  size: string;
+  stock: number;
+  sku: string;
+}
+
+export interface IMetalOption {
+  type: 'yellow-gold' | 'white-gold' | 'rose-gold' | 'platinum' | 'silver';
+  karat?: '9ct' | '14ct' | '18ct';
+  priceModifier: number;
+  images: string[];
+  isDefault: boolean;
+}
+
+export interface IProduct extends Document {
+  name: string;
+  slug: string;
+  description: string;
+  shortDescription: string;
+  category: mongoose.Types.ObjectId;
+  subCategory?: string;
+  basePrice: number;
+  salePrice?: number;
+  images: string[];
+  videos?: string[];
+  metalOptions: IMetalOption[];
+  variants: IVariant[];
+  tags: string[];
+  style?: string;
+  gemstone?: string;
+  settingType?: string;
+  isEngravable: boolean;
+  isFeatured: boolean;
+  isBestseller: boolean;
+  isNewArrival: boolean;
+  isActive: boolean;
+  averageRating: number;
+  reviewCount: number;
+  soldCount: number;
+  weight?: number;
+  dimensions?: string;
+  certification?: string;
+  deliveryDays: number;
+  metaTitle?: string;
+  metaDescription?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const metalOptionSchema = new Schema<IMetalOption>({
+  type: { type: String, enum: ['yellow-gold', 'white-gold', 'rose-gold', 'platinum', 'silver'], required: true },
+  karat: { type: String, enum: ['9ct', '14ct', '18ct'] },
+  priceModifier: { type: Number, default: 0 },
+  images: [String],
+  isDefault: { type: Boolean, default: false },
+});
+
+const variantSchema = new Schema<IVariant>({
+  size: { type: String, required: true },
+  stock: { type: Number, required: true, default: 0 },
+  sku: { type: String, required: true },
+});
+
+const productSchema = new Schema<IProduct>(
+  {
+    name: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, unique: true, lowercase: true },
+    description: { type: String, default: '' },
+    shortDescription: { type: String, required: true },
+    category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
+    subCategory: String,
+    basePrice: { type: Number, required: true, min: 0 },
+    salePrice: { type: Number, min: 0 },
+    images: [{ type: String, required: true }],
+    videos: [String],
+    metalOptions: [metalOptionSchema],
+    variants: [variantSchema],
+    tags: [String],
+    style: String,
+    gemstone: String,
+    settingType: String,
+    isEngravable: { type: Boolean, default: false },
+    isFeatured: { type: Boolean, default: false },
+    isBestseller: { type: Boolean, default: false },
+    isNewArrival: { type: Boolean, default: true },
+    isActive: { type: Boolean, default: true },
+    averageRating: { type: Number, default: 0, min: 0, max: 5 },
+    reviewCount: { type: Number, default: 0 },
+    soldCount: { type: Number, default: 0 },
+    weight: Number,
+    dimensions: String,
+    certification: String,
+    deliveryDays: { type: Number, default: 7 },
+    metaTitle: String,
+    metaDescription: String,
+  },
+  { timestamps: true }
+);
+
+productSchema.index({ name: 'text', description: 'text', tags: 'text' });
+productSchema.index({ category: 1 });
+productSchema.index({ basePrice: 1 });
+productSchema.index({ isFeatured: 1 });
+
+export default mongoose.model<IProduct>('Product', productSchema);

@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Netlify configuration for Sterling Jewellers (Next.js 14 App Router)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build]
+  base    = "."                    # build runs from the client/ folder
+  command = "npm run build"
+  publish = ".next"                # Next.js output directory
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS    = "--legacy-peer-deps"
+
+# Essential Next.js plugin — handles ISR, image optimisation, Edge functions
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# ── Headers ──────────────────────────────────────────────────────────────────
+# Security headers (supplement the ones set in next.config.js)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "camera=(), microphone=(), geolocation=()"
+
+# Cache static assets aggressively
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
+
+# ── Redirects ─────────────────────────────────────────────────────────────────
+# Force HTTPS
+[[redirects]]
+  from   = "http://sterlingjewellers.co.uk/*"
+  to     = "https://sterlingjewellers.co.uk/:splat"
+  status = 301
+  force  = true
+
+# www → non-www canonical
+[[redirects]]
+  from   = "https://www.sterlingjewellers.co.uk/*"
+  to     = "https://sterlingjewellers.co.uk/:splat"
+  status = 301
+  force  = true
