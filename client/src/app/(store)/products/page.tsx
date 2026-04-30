@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { Suspense, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Grid3X3, List, SlidersHorizontal, X } from 'lucide-react';
@@ -18,7 +18,8 @@ const sortOptions = [
   { label: 'Most Popular', value: 'popular' },
 ];
 
-export default function ProductsPage() {
+// ── Inner component uses useSearchParams — must be inside Suspense ─────────────
+function ProductsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -27,7 +28,7 @@ export default function ProductsPage() {
   const getFilters = useCallback(() => {
     const f: Record<string, string> = {};
     ['metal', 'style', 'gemstone', 'minPrice', 'maxPrice', 'sort', 'search', 'category'].forEach((k) => {
-      const v = searchParams.get(k);
+      const v = searchParams?.get(k);
       if (v) f[k] = v;
     });
     return f;
@@ -44,7 +45,7 @@ export default function ProductsPage() {
   const total: number = data?.data?.total || 0;
 
   const updateFilter = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
     if (value) params.set(key, value);
     else params.delete(key);
     params.delete('page');
@@ -58,10 +59,10 @@ export default function ProductsPage() {
       <div className="page-container">
         {/* Header */}
         <div className="mb-8">
-          <nav className="flex items-center gap-2 text-xs font-sans text-gray-500 mb-4">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-sans text-gray-500 mb-4">
             <a href="/" className="hover:text-gold-600">Home</a>
             <span>/</span>
-            <span className="text-charcoal">All Jewellery</span>
+            <span className="text-charcoal" aria-current="page">All Jewellery</span>
           </nav>
           <h1 className="section-title">All Jewellery</h1>
           <p className="font-sans text-sm text-gray-500 mt-2">{total} products</p>
@@ -86,10 +87,10 @@ export default function ProductsPage() {
               </select>
             </div>
             <div className="hidden md:flex items-center gap-1">
-              <button onClick={() => setView('grid')} className={cn('p-2 transition-colors', view === 'grid' ? 'text-gold-600' : 'text-gray-400 hover:text-gray-600')}>
+              <button onClick={() => setView('grid')} aria-label="Grid view" className={cn('p-2 transition-colors', view === 'grid' ? 'text-gold-600' : 'text-gray-400 hover:text-gray-600')}>
                 <Grid3X3 size={16} />
               </button>
-              <button onClick={() => setView('list')} className={cn('p-2 transition-colors', view === 'list' ? 'text-gold-600' : 'text-gray-400 hover:text-gray-600')}>
+              <button onClick={() => setView('list')} aria-label="List view" className={cn('p-2 transition-colors', view === 'list' ? 'text-gold-600' : 'text-gray-400 hover:text-gray-600')}>
                 <List size={16} />
               </button>
             </div>
@@ -109,14 +110,14 @@ export default function ProductsPage() {
               <div className="absolute left-0 top-0 bottom-0 w-72 bg-ivory p-6 overflow-y-auto">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-sans font-semibold text-sm tracking-widest uppercase">Filters</h3>
-                  <button onClick={() => setFilterOpen(false)}><X size={18} /></button>
+                  <button onClick={() => setFilterOpen(false)} aria-label="Close filters"><X size={18} /></button>
                 </div>
                 <FilterSidebar filters={filters} onFilterChange={updateFilter} onClearAll={clearAll} />
               </div>
             </div>
           )}
 
-          {/* Products */}
+          {/* Products grid */}
           <div className="flex-1">
             {isLoading ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
@@ -135,10 +136,7 @@ export default function ProductsPage() {
                 <button onClick={clearAll} className="btn-outline-gold">Clear Filters</button>
               </div>
             ) : (
-              <div className={cn(
-                'grid gap-5',
-                view === 'grid' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-1'
-              )}>
+              <div className={cn('grid gap-5', view === 'grid' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-1')}>
                 {products.map((product) => <ProductCard key={product._id} product={product} />)}
               </div>
             )}
@@ -146,5 +144,25 @@ export default function ProductsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="py-10 bg-ivory min-h-screen page-container">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="space-y-3">
+              <div className="skeleton aspect-square" />
+              <div className="skeleton h-4 w-3/4" />
+              <div className="skeleton h-4 w-1/3" />
+            </div>
+          ))}
+        </div>
+      </div>
+    }>
+      <ProductsContent />
+    </Suspense>
   );
 }

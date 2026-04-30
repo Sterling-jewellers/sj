@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import User from '../models/User.model';
 
 const signToken = (id: string) =>
-  jwt.sign({ id }, process.env.JWT_SECRET!, { expiresIn: process.env.JWT_EXPIRES_IN || '30d' });
+  jwt.sign({ id }, process.env.JWT_SECRET as string, { expiresIn: (process.env.JWT_EXPIRES_IN || '30d') as `${number}${'s'|'m'|'h'|'d'}` | number });
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { firstName, lastName, email, password } = req.body;

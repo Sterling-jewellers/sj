@@ -320,7 +320,7 @@ router.post('/customers', asyncHandler(async (req, res) => {
   const exists = await User.findOne({ email });
   if (exists) { res.status(400).json({ message: 'Email already in use' }); return; }
   const user = await User.create({ firstName, lastName, email, password, role });
-  const userObj = user.toObject() as Record<string, unknown>;
+  const userObj = user.toObject() as unknown as Record<string, unknown>;
   delete userObj.password;
   res.status(201).json(userObj);
 }));

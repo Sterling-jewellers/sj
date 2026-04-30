@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Check, ChevronRight, Diamond, Ring, Sparkles } from 'lucide-react';
+import { Check, ChevronRight, Diamond, Gem, Sparkles } from 'lucide-react';
 import { productsApi, diamondsApi } from '@/lib/api';
 import { IProduct, IDiamond } from '@/types';
 import { formatPrice } from '@/lib/utils';
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 const steps = [
-  { id: 1, label: 'Choose Setting', icon: Ring },
+  { id: 1, label: 'Choose Setting', icon: Gem },
   { id: 2, label: 'Select Diamond', icon: Diamond },
   { id: 3, label: 'Review & Add', icon: Sparkles },
 ];

@@ -1,26 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { ordersApi } from '@/lib/api';
 import { useCartStore } from '@/store/cartStore';
 
-// Handles both:
-// 1. Inline payment success (navigated here by the checkout page)
-// 2. Stripe 3DS redirect (?payment_intent=pi_xxx&redirect_status=succeeded)
-export default function OrderSuccessPage() {
+// ── Inner component needs to be wrapped in Suspense (Next.js 14 requirement) ─
+function SuccessContent() {
   const searchParams = useSearchParams();
   const { clearCart } = useCartStore();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
   useEffect(() => {
+    if (!searchParams) {
+      setStatus('success');
+      return;
+    }
+
     const paymentIntent = searchParams.get('payment_intent');
     const redirectStatus = searchParams.get('redirect_status');
 
     if (paymentIntent && redirectStatus === 'succeeded') {
-      // 3DS redirect flow — retrieve pending order data from sessionStorage and create the order
+      // 3DS redirect flow — retrieve pending order data from sessionStorage
       const pending = sessionStorage.getItem('sj_pending_order');
       if (pending) {
         const { shippingData, couponCode, couponData, cartItems } = JSON.parse(pending);
@@ -48,14 +51,14 @@ export default function OrderSuccessPage() {
           })
           .catch(() => setStatus('error'));
       } else {
-        // Order might have already been created by webhook or inline
+        // Order may have been created already (webhook) — just show success
         clearCart();
         setStatus('success');
       }
     } else if (redirectStatus === 'failed') {
       setStatus('error');
     } else {
-      // Normal inline success flow (no redirect params)
+      // Inline payment success — navigated here directly by the checkout page
       setStatus('success');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,11 +80,11 @@ export default function OrderSuccessPage() {
       <div className="min-h-screen bg-ivory flex items-center justify-center py-20">
         <div className="text-center max-w-md px-6">
           <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-4xl">✕</span>
+            <span className="text-4xl text-red-400">✕</span>
           </div>
           <h1 className="font-serif text-4xl font-light text-charcoal mb-4">Payment Failed</h1>
           <p className="text-sm font-sans text-gray-600 leading-relaxed mb-8">
-            Your payment was not completed. No charge has been made.
+            Your payment was not completed. No charge has been made to your card.
           </p>
           <Link href="/checkout" className="btn-gold inline-block">Try Again</Link>
         </div>
@@ -108,5 +111,18 @@ export default function OrderSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Page export must wrap in Suspense for useSearchParams ─────────────────────
+export default function OrderSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-ivory flex items-center justify-center">
+        <Loader2 size={40} className="animate-spin text-gold-500" />
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   );
 }

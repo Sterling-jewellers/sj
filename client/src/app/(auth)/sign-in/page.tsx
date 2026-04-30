@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -9,9 +9,12 @@ import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 
+// Auth pages must never be statically rendered
+export const dynamic = 'force-dynamic';
+
 interface LoginForm { email: string; password: string; }
 
-export default function SignInPage() {
+function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser } = useAuthStore();
@@ -94,5 +97,13 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-md bg-white p-10 shadow-sm animate-pulse h-96" />}>
+      <SignInForm />
+    </Suspense>
   );
 }
