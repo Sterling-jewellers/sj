@@ -10,29 +10,43 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // ── Sterling Jewellers Brand Palette ──────────────────────────────────
+        // Dark Olive  #333D29  →  charcoal (primary brand dark)
+        // Light Olive #C2C5AA  →  gold-300 (primary accent)
+        // Text #000000  ·  Background #FFFFFF / ivory
+
+        charcoal: '#333D29',   // Dark Olive
+
+        // "gold" key kept so all existing utility classes
+        // (bg-gold-500, text-gold-600 …) remap to olive tones automatically
         gold: {
-          50:  '#fffbeb',
-          100: '#fef3c7',
-          200: '#fde68a',
-          300: '#fcd34d',
-          400: '#fbbf24',
-          500: '#C9A84C',
-          600: '#B8960E',
-          700: '#92740A',
-          800: '#78600A',
-          900: '#5C4A0A',
+          50:  '#F5F6F0',
+          100: '#E8EADC',
+          200: '#D5D9C4',
+          300: '#C2C5AA',   // ← Light Olive — primary brand accent
+          400: '#A8AC8A',
+          500: '#8C9070',   // ← default accent weight
+          600: '#717558',
+          700: '#5A5E43',
+          800: '#464932',
+          900: '#333D29',   // ← Dark Olive
         },
-        champagne: '#F7F0E6',
-        charcoal: '#1C1C1E',
-        ivory: '#FAF9F6',
+
+        champagne: '#F0F1EC',  // Soft olive-white — panels / card backgrounds
+        ivory:     '#F8F9F5',  // Near-white page base
+        'brand-dark':  '#333D29',
+        'brand-light': '#C2C5AA',
       },
       fontFamily: {
-        serif:  ['var(--font-cormorant)', 'Georgia', 'serif'],
-        sans:   ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
+        // Lora    (serif)  → headings, product names, editorial copy
+        serif: ['var(--font-lora)',    'Georgia',   'serif'],
+        // Gantari (sans)   → body, buttons, labels, UI copy
+        sans:  ['var(--font-gantari)', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'hero-gradient': 'linear-gradient(135deg, #1C1C1E 0%, #2D2D2F 50%, #1C1C1E 100%)',
-        'gold-gradient': 'linear-gradient(135deg, #C9A84C 0%, #F0D070 50%, #C9A84C 100%)',
+        'hero-gradient':  'linear-gradient(135deg, #333D29 0%, #4A5538 50%, #333D29 100%)',
+        'olive-gradient': 'linear-gradient(135deg, #C2C5AA 0%, #E8EADC 50%, #C2C5AA 100%)',
+        'gold-gradient':  'linear-gradient(135deg, #C2C5AA 0%, #E8EADC 50%, #C2C5AA 100%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',

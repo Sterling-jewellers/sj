@@ -76,6 +76,12 @@ export const adminApi = {
   createProduct: (data: unknown) => api.post('/admin/products', data),
   updateProduct: (id: string, data: unknown) => api.put(`/admin/products/${id}`, data),
   deleteProduct: (id: string) => api.delete(`/admin/products/${id}`),
+  importProducts: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/admin/products/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  downloadImportTemplate: () => `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api'}/import-template`,
 
   // Diamonds
   getDiamonds: (params?: Record<string, unknown>) => api.get('/admin/diamonds', { params }),
@@ -104,4 +110,41 @@ export const adminApi = {
   createCoupon: (data: unknown) => api.post('/admin/coupons', data),
   updateCoupon: (id: string, data: unknown) => api.put(`/admin/coupons/${id}`, data),
   deleteCoupon: (id: string) => api.delete(`/admin/coupons/${id}`),
+
+  // Categories (admin)
+  getCategories: () => api.get('/admin/categories'),
+  createCategory: (data: unknown) => api.post('/admin/categories', data),
+  updateCategory: (id: string, data: unknown) => api.put(`/admin/categories/${id}`, data),
+  deleteCategory: (id: string) => api.delete(`/admin/categories/${id}`),
+
+  // AI generation
+  generateProduct: (data: unknown) => api.post('/admin/ai/generate-product', data),
+  generateMetalImage: (data: { imageUrl: string; metalType: string; karat?: string }) =>
+    api.post('/admin/ai/generate-metal-image', data),
+  checkGenerationStatus: (predictionId: string) =>
+    api.get(`/admin/ai/generation-status/${predictionId}`),
+  saveMetalImages: (productId: string, data: { metalType: string; imageUrl: string }) =>
+    api.patch(`/admin/products/${productId}/metal-images`, data),
+
+  // 3D model
+  generate3D: (data: { imageUrl: string }) => api.post('/admin/ai/generate-3d', data),
+  check3DStatus: (taskId: string) => api.get(`/admin/ai/3d-status/${taskId}`),
+  saveModel3D: (productId: string, data: { model3dUrl: string; model3dPreview?: string }) =>
+    api.patch(`/admin/products/${productId}/model3d`, data),
+
+  // Competitor / high-street price estimate
+  estimateCompetitorPrice: (data: {
+    name: string;
+    metalType?: string;
+    karat?: string;
+    settingType?: string;
+    bandStyle?: string;
+    shankWidth?: string;
+    gemstone?: string;
+    caratWeight?: number;
+  }) => api.post('/admin/ai/competitor-price', data),
+};
+
+export const goldPriceApi = {
+  getPrice: () => api.get('/goldprice'),
 };

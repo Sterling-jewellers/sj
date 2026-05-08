@@ -51,7 +51,9 @@ const nextConfig = {
   // ── Redirects ─────────────────────────────────────────────────────────────
   async redirects() {
     return [
-      // Legacy URL patterns — add your own as needed
+      // Admin root → dashboard
+      { source: '/admin', destination: '/admin/dashboard', permanent: false },
+      // Legacy URL patterns
       { source: '/shop', destination: '/products', permanent: true },
       { source: '/shop/:path*', destination: '/products/:path*', permanent: true },
     ];

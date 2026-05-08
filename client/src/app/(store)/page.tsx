@@ -16,13 +16,19 @@ import WhyChooseUs from '@/components/home/WhyChooseUs';
 import RingBuilderCTA from '@/components/home/RingBuilderCTA';
 import Testimonials from '@/components/home/Testimonials';
 import InstagramGallery from '@/components/home/InstagramGallery';
+import PersonalizedBanner from '@/components/personalization/PersonalizedBanner';
+import RecentlyViewed from '@/components/personalization/RecentlyViewed';
 
 export default function HomePage() {
   return (
     <>
+      {/* Subtle returning-visitor banner — hidden for new visitors */}
+      <PersonalizedBanner />
       <HeroBanner />
       <CategoryGrid />
       <FeaturedProducts />
+      {/* Recently viewed — only renders after 2+ products viewed */}
+      <RecentlyViewed />
       <PromoBanner />
       <Bestsellers />
       <RingBuilderCTA />

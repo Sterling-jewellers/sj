@@ -3,9 +3,18 @@ import asyncHandler from 'express-async-handler';
 import Stripe from 'stripe';
 import Order from '../models/Order.model';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Lazy getter — initialised on first request so dotenv has already run
+let _stripe: Stripe | null = null;
+const getStripe = () => {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not set');
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  return _stripe;
+};
 
 export const createPaymentIntent = asyncHandler(async (req: Request, res: Response) => {
+  const stripe = getStripe();
   const { amount, currency = 'gbp', metadata } = req.body;
 
   const paymentIntent = await stripe.paymentIntents.create({
@@ -19,6 +28,7 @@ export const createPaymentIntent = asyncHandler(async (req: Request, res: Respon
 });
 
 export const handleWebhook = asyncHandler(async (req: Request, res: Response) => {
+  const stripe = getStripe();
   const sig = req.headers['stripe-signature']!;
   let event: Stripe.Event;
 

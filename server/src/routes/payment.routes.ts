@@ -4,7 +4,8 @@ import { protect } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.post('/create-intent', protect, createPaymentIntent);
+// No auth required — guests can pay too; auth token is optional
+router.post('/create-intent', createPaymentIntent);
 router.post('/webhook', handleWebhook);
 router.post('/validate-coupon', validateCoupon);
 

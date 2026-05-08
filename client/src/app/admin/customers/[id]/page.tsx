@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { adminApi } from '@/lib/api';
@@ -24,8 +24,8 @@ interface EditForm {
   role: 'user' | 'admin';
 }
 
-export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function CustomerDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
 

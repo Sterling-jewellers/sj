@@ -3,14 +3,16 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Package, Diamond, ShoppingBag, Users, UserCog, Tag, Settings, LogOut, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Package, Diamond, ShoppingBag, Users, UserCog, Tag, Settings, LogOut, Loader2, FolderOpen, Upload } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/admin/dashboard' },
   { icon: Package, label: 'Products', href: '/admin/products' },
+  { icon: FolderOpen, label: 'Categories', href: '/admin/categories' },
   { icon: Diamond, label: 'Diamonds', href: '/admin/diamonds' },
+  { icon: Upload, label: 'Bulk Import', href: '/admin/import' },
   { icon: ShoppingBag, label: 'Orders', href: '/admin/orders' },
   { icon: Users, label: 'Customers', href: '/admin/customers' },
   { icon: UserCog, label: 'Users', href: '/admin/users' },
@@ -50,14 +52,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="block text-[9px] tracking-[0.4em] uppercase text-gold-400 font-medium -mt-0.5">Admin Panel</span>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map(({ icon: Icon, label, href }) => (
             <Link
               key={href}
               href={href}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors rounded-sm',
-                pathname?.startsWith(href) ? 'bg-gold-500 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                (pathname === href || (pathname?.startsWith(href + '/') ?? false))
+                  ? 'bg-gold-500 text-white'
+                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
               )}
             >
               <Icon size={17} />

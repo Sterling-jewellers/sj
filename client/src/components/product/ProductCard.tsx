@@ -9,13 +9,16 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { useCartStore } from '@/store/cartStore';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function ProductCard({ product }: { product: IProduct }) {
   const { toggleItem, isWishlisted } = useWishlistStore();
   const { addItem } = useCartStore();
   const [imgIdx, setImgIdx] = useState(0);
-  const wishlisted = isWishlisted(product._id);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // Only read persisted wishlist state after hydration to avoid server/client mismatch
+  const wishlisted = mounted && isWishlisted(product._id);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();

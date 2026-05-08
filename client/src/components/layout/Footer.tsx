@@ -109,16 +109,16 @@ export default function Footer() {
             <div className="mt-8 space-y-2">
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Phone size={13} className="text-gold-400" />
-                <span>0800 123 4567</span>
+                <span>+44 742 906 5954</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Mail size={13} className="text-gold-400" />
-                <span>hello@sterlingjewellers.co.uk</span>
+                <span>Sterlingjewellerslimited@gmail.com</span>
               </div>
-              <div className="flex items-start gap-2 text-sm text-gray-400">
+              {/* <div className="flex items-start gap-2 text-sm text-gray-400">
                 <MapPin size={13} className="text-gold-400 mt-0.5 flex-shrink-0" />
                 <span>48 Bond Street, London, W1S 1RB</span>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

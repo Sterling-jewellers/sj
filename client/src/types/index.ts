@@ -30,6 +30,7 @@ export interface ICategory {
   image: string;
   parent?: string;
   sortOrder: number;
+  sourceStore?: string;
 }
 
 export interface IMetalOption {
@@ -38,6 +39,11 @@ export interface IMetalOption {
   priceModifier: number;
   images: string[];
   isDefault: boolean;
+}
+
+export interface IWeightBySize {
+  size: string;
+  weightGrams: number;
 }
 
 export interface IProduct {
@@ -50,6 +56,7 @@ export interface IProduct {
   subCategory?: string;
   basePrice: number;
   salePrice?: number;
+  competitorPrice?: number;
   images: string[];
   videos?: string[];
   metalOptions: IMetalOption[];
@@ -58,6 +65,9 @@ export interface IProduct {
   style?: string;
   gemstone?: string;
   settingType?: string;
+  bandStyle?: 'plain' | 'pave' | 'half-pave' | 'channel' | 'twisted';
+  shankWidth?: 'slim' | 'standard' | 'large';
+  weightBySize?: IWeightBySize[];
   isEngravable: boolean;
   isFeatured: boolean;
   isBestseller: boolean;
@@ -68,6 +78,9 @@ export interface IProduct {
   averageRating: number;
   reviewCount: number;
   deliveryDays: number;
+  aiGenerated?: boolean;
+  model3dUrl?: string;
+  model3dPreview?: string;
 }
 
 export interface IDiamond {
@@ -86,6 +99,8 @@ export interface IDiamond {
   symmetry: string;
   imageUrl?: string;
   videoUrl?: string;
+  loupe360?: string;   // Nivoda Loupe360 interactive viewer URL
+  source?:   'nivoda' | 'local';  // where the data came from
 }
 
 export interface ICartItem {

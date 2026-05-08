@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
-import { Cormorant_Garamond, Montserrat } from 'next/font/google';
+import { Lora, Gantari } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
-const cormorant = Cormorant_Garamond({
+// Lora — serif brand font for headings and product titles
+const lora = Lora({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['400', '500', '600', '700'],
   style: ['normal', 'italic'],
-  variable: '--font-cormorant',
+  variable: '--font-lora',
   display: 'swap',
 });
 
-const montserrat = Montserrat({
+// Gantari — geometric sans-serif for body copy, buttons, and labels
+const gantari = Gantari({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-montserrat',
+  variable: '--font-gantari',
   display: 'swap',
 });
 
@@ -111,7 +113,7 @@ const orgSchema = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={`${cormorant.variable} ${montserrat.variable}`}>
+    <html lang="en-GB" className={`${lora.variable} ${gantari.variable}`}>
       <head>
         <script
           type="application/ld+json"

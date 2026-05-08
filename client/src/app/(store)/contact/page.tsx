@@ -31,10 +31,10 @@ export default function ContactPage() {
           {/* Info */}
           <div className="space-y-8">
             {[
-              { icon: Phone, title: 'Call Us', lines: ['0800 123 4567', 'Mon–Sat 9am–6pm'] },
-              { icon: Mail, title: 'Email Us', lines: ['hello@sterlingjewellers.co.uk', 'We reply within 2 hours'] },
-              { icon: MapPin, title: 'Visit Us', lines: ['48 Bond Street', 'London, W1S 1RB'] },
-              { icon: Clock, title: 'Opening Hours', lines: ['Mon–Sat: 9am–6pm', 'Sunday: 11am–5pm'] },
+              { icon: Phone, title: 'Call Us', lines: ['+44 742 906 5954'] },
+              { icon: Mail, title: 'Email Us', lines: ['Sterlingjewellerslimited@gmail.com', 'We reply within 2 hours'] },
+              // { icon: MapPin, title: 'Visit Us', lines: ['48 Bond Street', 'London, W1S 1RB'] },
+              // { icon: Clock, title: 'Opening Hours', lines: ['Mon–Sat: 9am–6pm', 'Sunday: 11am–5pm'] },
             ].map(({ icon: Icon, title, lines }) => (
               <div key={title} className="flex gap-4">
                 <div className="w-10 h-10 border border-gold-300 flex items-center justify-center flex-shrink-0">
