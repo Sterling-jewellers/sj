@@ -753,6 +753,17 @@ router.get('/hanron/status', asyncHandler(async (_req: Request, res: Response) =
 // Body: { categories?: string[], maxPages?: number, detailScrape?: boolean,
 //         saveToDb?: boolean, defaultCategoryId?: string }
 router.post('/hanron/sync', asyncHandler(async (req: Request, res: Response) => {
+  // Hanron scraping only works from a residential IP.
+  // Cloudflare blocks Render's datacenter IPs with a 403.
+  if (process.env.NODE_ENV === 'production') {
+    res.status(503).json({
+      success: false,
+      message: 'Hanron sync is unavailable on the production server — Cloudflare blocks datacenter IPs.',
+      fix: 'Run this sync from your local machine: POST http://localhost:5001/api/admin/hanron/sync',
+    });
+    return;
+  }
+
   const {
     categories,
     saveToDb    = false,

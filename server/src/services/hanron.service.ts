@@ -58,24 +58,34 @@ export const HANRON_CATEGORIES: Record<string, string> = {
 // ── Axios client with persistent cookie jar ───────────────────────────────────
 function makeClient(): AxiosInstance {
   const jar    = new CookieJar();
-  // wrapper() attaches the jar; don't pass jar inside axios.create() — the types
-  // don't include it there and it causes a TS error in strict mode.
   const client = wrapper(axios.create({
     baseURL:         BASE_URL,
     timeout:         30_000,
     withCredentials: true,
-    maxRedirects:    5,
+    maxRedirects:    10,
+    // Full browser-like headers to pass Cloudflare checks
     headers: {
-      'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0 Safari/537.36',
-      'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-GB,en;q=0.9',
+      'User-Agent':       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept':           'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language':  'en-GB,en;q=0.9',
+      'Accept-Encoding':  'gzip, deflate, br',
+      'Cache-Control':    'max-age=0',
+      'Sec-Ch-Ua':        '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"macOS"',
+      'Sec-Fetch-Dest':   'document',
+      'Sec-Fetch-Mode':   'navigate',
+      'Sec-Fetch-Site':   'same-origin',
+      'Sec-Fetch-User':   '?1',
+      'Upgrade-Insecure-Requests': '1',
     },
   }));
-  // Attach jar after wrapping (supported by axios-cookiejar-support v5+)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (client.defaults as any).jar = jar;
   return client;
 }
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 async function login(): Promise<AxiosInstance> {
@@ -87,8 +97,30 @@ async function login(): Promise<AxiosInstance> {
     throw new Error('HANRON_EMAIL / HANRON_PASSWORD not set in .env');
   }
 
+  // ── Cloudflare IP check ───────────────────────────────────────────────────
+  // Render/cloud datacenter IPs are blocked by Cloudflare at the edge.
+  // This sync must be triggered from a residential IP (your local machine).
+  // If NODE_ENV=production, abort early with a clear message.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Hanron sync must be run from localhost — Cloudflare blocks cloud datacenter IPs (Render). ' +
+      'Run the sync from your local server: POST http://localhost:5001/api/admin/hanron/sync'
+    );
+  }
+
   const client = makeClient();
 
+  // Step 1: visit homepage to warm up Cloudflare cookies (__cf_bm, cf_clearance)
+  try {
+    await client.get('/');
+    await sleep(800);
+    await client.get('/customer/login');
+    await sleep(500);
+  } catch {
+    // Non-fatal — continue even if homepage visit fails
+  }
+
+  // Step 2: submit login form
   const form = new URLSearchParams();
   form.append('fields[Email]',    email);
   form.append('fields[Password]', password);
@@ -96,15 +128,27 @@ async function login(): Promise<AxiosInstance> {
   form.append('doAction',         'login');
   form.append('success_url',      '/customer/account');
 
-  await client.post('/customer/login', form.toString(), {
+  const loginRes = await client.post('/customer/login', form.toString(), {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'Referer':      `${BASE_URL}/customer/login`,
       'Origin':       BASE_URL,
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Mode': 'navigate',
     },
   });
 
-  // Verify login succeeded
+  // Cloudflare returns a 403 or an HTML challenge page for datacenter IPs
+  const loginHtml = loginRes.data as string;
+  if (loginRes.status === 403 || loginHtml.includes('cf-browser-verification') || loginHtml.includes('Checking your browser')) {
+    throw new Error(
+      'Cloudflare is blocking this server\'s IP. Run Hanron sync from localhost instead: ' +
+      'POST http://localhost:5001/api/admin/hanron/sync'
+    );
+  }
+
+  // Step 3: verify login succeeded
+  await sleep(300);
   const check = await client.get('/customer/account');
   const hasLogout = (check.data as string).includes('logout') || (check.data as string).includes('Logout');
   if (!hasLogout) {

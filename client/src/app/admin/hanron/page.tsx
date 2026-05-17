@@ -89,8 +89,11 @@ export default function HanronPage() {
         toast.success(`Preview ready — ${(res.data as SyncResult).total} products found`);
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Sync failed';
-      toast.error(msg);
+      const errData = (err as { response?: { data?: { message?: string; fix?: string } } })?.response?.data;
+      const msg = errData?.message || 'Sync failed';
+      const fix = errData?.fix;
+      toast.error(fix ? `${msg}\n${fix}` : msg, { duration: 8000 });
+      setSyncResult({ success: false, errors: [msg, ...(fix ? [fix] : [])] });
     } finally {
       setSyncing(false);
     }
@@ -125,8 +128,34 @@ export default function HanronPage() {
     : status.status === 'not_configured' ? AlertCircle
     : XCircle;
 
+  const isProduction = process.env.NEXT_PUBLIC_API_URL?.includes('render.com') ||
+    (typeof window !== 'undefined' && !window.location.hostname.includes('localhost'));
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+
+      {/* Cloudflare warning banner — shown on production */}
+      {isProduction && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-amber-800">Hanron sync must run from your local machine</p>
+            <p className="text-amber-700 mt-1">
+              Hanron&apos;s website uses Cloudflare, which blocks requests from cloud servers like Render.
+              Your local machine has a residential IP that Cloudflare allows through.
+            </p>
+            <div className="mt-3 bg-amber-100 rounded-lg p-3 font-mono text-xs text-amber-900">
+              <p className="font-semibold mb-1">Run this from your computer:</p>
+              <p>1. Make sure your local server is running: <code>npm run dev:server</code></p>
+              <p className="mt-1">2. Then trigger the sync:</p>
+              <p className="mt-1 select-all">curl -X POST http://localhost:5001/api/admin/hanron/sync \</p>
+              <p className="select-all ml-4">-H &quot;Authorization: Bearer YOUR_ADMIN_TOKEN&quot; \</p>
+              <p className="select-all ml-4">-H &quot;Content-Type: application/json&quot; \</p>
+              <p className="select-all ml-4">-d &apos;&#123;&quot;saveToDb&quot;: true&#125;&apos;</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
