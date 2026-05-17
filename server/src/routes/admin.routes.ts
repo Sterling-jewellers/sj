@@ -728,7 +728,7 @@ router.patch('/products/:id/model3d', asyncHandler(async (req: Request, res: Res
 }));
 
 // ─── Sample Excel Template Download ──────────────────────────────────────────
-router.get('/products/import/template', (_req, res) => {
+router.get('/products/import/template', (_req: Request, res: Response) => {
   const ws = XLSX.utils.aoa_to_sheet([
     ['name','categoryId','basePrice','salePrice','competitorPrice','shortDescription','description','style','gemstone','settingType','metalType','karat','images','tags','deliveryDays'],
     ['Classic Round Solitaire','<paste category _id here>','850','','1200','Elegant round brilliant diamond ring','<p>A timeless solitaire ring...</p>','solitaire','round','four-claw','platinum','18ct','https://example.com/image.jpg','engagement,solitaire,classic','7'],

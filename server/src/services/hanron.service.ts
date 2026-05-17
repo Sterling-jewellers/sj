@@ -24,6 +24,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import * as cheerio from 'cheerio';
+import type { Element } from 'domhandler';
 import { CookieJar } from 'tough-cookie';
 import { wrapper } from 'axios-cookiejar-support';
 
@@ -57,8 +58,9 @@ export const HANRON_CATEGORIES: Record<string, string> = {
 // ── Axios client with persistent cookie jar ───────────────────────────────────
 function makeClient(): AxiosInstance {
   const jar    = new CookieJar();
+  // wrapper() attaches the jar; don't pass jar inside axios.create() — the types
+  // don't include it there and it causes a TS error in strict mode.
   const client = wrapper(axios.create({
-    jar,
     baseURL:         BASE_URL,
     timeout:         30_000,
     withCredentials: true,
@@ -69,6 +71,9 @@ function makeClient(): AxiosInstance {
       'Accept-Language': 'en-GB,en;q=0.9',
     },
   }));
+  // Attach jar after wrapping (supported by axios-cookiejar-support v5+)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (client.defaults as any).jar = jar;
   return client;
 }
 
@@ -130,7 +135,7 @@ async function scrapeCategoryAll(client: AxiosInstance, path: string, categoryNa
   const $   = cheerio.load(res.data as string);
   const products: HanronProduct[] = [];
 
-  $('.product-rowtype').each((_: number, el: cheerio.Element) => {
+  $('.product-rowtype').each((_: number, el: Element) => {
     const $el = $(el);
 
     const name = $el.find('.itemname a, .itemname').first().text().trim();
@@ -158,7 +163,7 @@ async function scrapeCategoryAll(client: AxiosInstance, path: string, categoryNa
 
     // Sizes — .ml-block contains "M 2g", "L 2g" etc.
     const sizes: string[] = [];
-    $el.find('.ml-block').each((_: number, s: cheerio.Element) => {
+    $el.find('.ml-block').each((_: number, s: Element) => {
       const t = $(s).text().trim();
       const sz = t.split(/\s+/)[0];
       if (sz && /^[A-Z0-9]+$/.test(sz) && sz.length <= 3) sizes.push(sz);
