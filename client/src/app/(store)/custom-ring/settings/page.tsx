@@ -37,12 +37,18 @@ export default function SettingsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['ring-settings-gallery'],
-    queryFn: () => productsApi.getAll({ limit: 48, sort: 'newest' }),
+    queryFn: () => productsApi.getAll({ isRingBuilder: 'true', limit: 200, sort: 'newest' }),
   });
 
   const allSettings: IProduct[] = useMemo(() => {
     const raw = data?.data;
-    return Array.isArray(raw) ? raw : (raw?.products || []);
+    const all: IProduct[] = Array.isArray(raw) ? raw : (raw?.products || []);
+    // Only show engagement ring settings (Ladies Rings → engagement-rings category)
+    // Wedding bands, signet rings and gents rings are excluded from the builder
+    return all.filter(p =>
+      p.isRingBuilder === true &&
+      (p.category as { slug?: string })?.slug === 'engagement-rings'
+    );
   }, [data]);
 
   const filtered = useMemo(() => {

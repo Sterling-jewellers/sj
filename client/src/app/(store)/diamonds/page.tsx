@@ -6,6 +6,7 @@ import { diamondsApi } from '@/lib/api';
 import { IDiamond } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import Link from 'next/link';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 import Image from 'next/image';
 import { LayoutGrid, List, Search, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -129,9 +130,11 @@ function DiamondCard({ d }: { d: IDiamond }) {
           <Link href={`/diamonds/${d._id}`} className="text-[11px] font-sans font-medium text-charcoal hover:text-gold-600 transition-colors">
             View Details →
           </Link>
-          <Link href={`/custom-ring?diamond=${d._id}`} className="text-[10px] font-sans text-gold-600 hover:underline">
-            Use in Ring
-          </Link>
+          {RING_BUILDER_ENABLED && (
+            <Link href={`/custom-ring?diamond=${d._id}`} className="text-[10px] font-sans text-gold-600 hover:underline">
+              Use in Ring
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -166,7 +169,7 @@ function DiamondRow({ d, i }: { d: IDiamond; i: number }) {
       <span className="font-semibold text-charcoal">{formatPrice(d.price)}</span>
       <div className="flex flex-col gap-1 text-right">
         <Link href={`/diamonds/${d._id}`} className="text-[11px] font-medium text-charcoal hover:text-gold-600 transition-colors">Details →</Link>
-        <Link href={`/custom-ring?diamond=${d._id}`} className="text-[10px] text-gold-600 hover:underline">Use in Ring</Link>
+        {RING_BUILDER_ENABLED && <Link href={`/custom-ring?diamond=${d._id}`} className="text-[10px] text-gold-600 hover:underline">Use in Ring</Link>}
       </div>
     </div>
   );

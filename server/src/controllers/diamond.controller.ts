@@ -15,40 +15,18 @@ export const getDiamonds = asyncHandler(async (req: Request, res: Response) => {
   const limit = Number(req.query.limit) || 48;
   const skip  = (page - 1) * limit;
 
-  // ── Try Nivoda first if credentials are configured ───────────────────────
-  const nivodaResult = await searchNivodaDiamonds({
-    shapes:    req.query.shape   ? (req.query.shape as string).split(',')   : undefined,
-    colors:    req.query.color   ? (req.query.color as string).split(',')   : undefined,
-    clarities: req.query.clarity ? (req.query.clarity as string).split(',') : undefined,
-    labs:      req.query.lab     ? (req.query.lab as string).split(',')     : undefined,
-    minCarat:  req.query.minCarat ? Number(req.query.minCarat) : undefined,
-    maxCarat:  req.query.maxCarat ? Number(req.query.maxCarat) : undefined,
-    minPrice:  req.query.minPrice ? Number(req.query.minPrice) : undefined,
-    maxPrice:  req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
-    limit,
-    offset: skip,
-  });
-
-  if (nivodaResult) {
-    // Nivoda data — real inventory with actual diamond photos
-    res.json({
-      diamonds: nivodaResult.diamonds,
-      total: nivodaResult.total,
-      page,
-      pages: Math.ceil(nivodaResult.total / limit),
-      source: 'nivoda',
-    });
-    return;
-  }
-
-  // ── Fall back to local MongoDB diamonds ──────────────────────────────────
+  // ── Build MongoDB query ───────────────────────────────────────────────────
   const query: Record<string, unknown> = { isAvailable: true };
 
-  if (req.query.shape)   query.shape              = { $in: (req.query.shape as string).split(',') };
-  if (req.query.color)   query.color              = { $in: (req.query.color as string).split(',') };
-  if (req.query.clarity) query.clarity            = { $in: (req.query.clarity as string).split(',') };
+  const labgrownParam = req.query.labgrown as string | undefined;
+  if (labgrownParam === 'true')  query.isLabGrown = true;
+  if (labgrownParam === 'false') query.isLabGrown = false;
+
+  if (req.query.shape)   query.shape              = { $in: (req.query.shape as string).split(',').map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()) };
+  if (req.query.color)   query.color              = { $in: (req.query.color as string).split(',').map(s => s.toUpperCase()) };
+  if (req.query.clarity) query.clarity            = { $in: (req.query.clarity as string).split(',').map(s => s.toUpperCase()) };
   if (req.query.cut)     query.cut                = { $in: (req.query.cut as string).split(',') };
-  if (req.query.lab)     query['certificate.lab'] = { $in: (req.query.lab as string).split(',') };
+  if (req.query.lab)     query['certificate.lab'] = { $in: (req.query.lab as string).split(',').map(s => s.toUpperCase()) };
 
   if (req.query.minCarat || req.query.maxCarat) {
     query.caratWeight = {};
@@ -67,18 +45,53 @@ export const getDiamonds = asyncHandler(async (req: Request, res: Response) => {
   };
   const sort = sortMap[req.query.sort as string] || { price: 1 };
 
+  // ── Use MongoDB first (synced from Nivoda) — no live API call per request ─
   const [diamonds, total] = await Promise.all([
-    Diamond.find(query).sort(sort).skip(skip).limit(limit),
+    Diamond.find(query).lean().sort(sort).skip(skip).limit(limit),
     Diamond.countDocuments(query),
   ]);
 
-  res.json({ diamonds, total, page, pages: Math.ceil(total / limit), source: 'local' });
+  if (total > 0) {
+    res.json({ diamonds, total, page, pages: Math.ceil(total / limit), source: 'local' });
+    return;
+  }
+
+  // ── Fall back to live Nivoda only when local DB is empty ──────────────────
+  const labgrown = labgrownParam === 'true' ? true : labgrownParam === 'false' ? false : undefined;
+  const nivodaResult = await searchNivodaDiamonds({
+    shapes:    req.query.shape   ? (req.query.shape as string).split(',')   : undefined,
+    colors:    req.query.color   ? (req.query.color as string).split(',')   : undefined,
+    clarities: req.query.clarity ? (req.query.clarity as string).split(',') : undefined,
+    labs:      req.query.lab     ? (req.query.lab as string).split(',')     : undefined,
+    minCarat:  req.query.minCarat ? Number(req.query.minCarat) : undefined,
+    maxCarat:  req.query.maxCarat ? Number(req.query.maxCarat) : undefined,
+    minPrice:  req.query.minPrice ? Number(req.query.minPrice) : undefined,
+    maxPrice:  req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
+    labgrown, limit, offset: skip,
+  });
+
+  if (nivodaResult) {
+    res.json({ diamonds: nivodaResult.diamonds, total: nivodaResult.total, page, pages: Math.ceil(nivodaResult.total / limit), source: 'nivoda' });
+    return;
+  }
+
+  res.json({ diamonds: [], total: 0, page, pages: 0, source: 'local' });
 });
 
 export const getDiamondById = asyncHandler(async (req: Request, res: Response) => {
-  const diamond = await Diamond.findById(req.params.id);
-  if (!diamond) { res.status(404).json({ message: 'Diamond not found' }); return; }
-  res.json(diamond);
+  const { id } = req.params;
+
+  // Try MongoDB ObjectId first (24-char hex)
+  if (/^[0-9a-fA-F]{24}$/.test(id)) {
+    const diamond = await Diamond.findById(id).lean();
+    if (diamond) { res.json(diamond); return; }
+  }
+
+  // Try nivodaId field (UUID) — synced diamonds are in MongoDB, no live API call needed
+  const byNivodaId = await Diamond.findOne({ nivodaId: id }).lean();
+  if (byNivodaId) { res.json(byNivodaId); return; }
+
+  res.status(404).json({ message: 'Diamond not found' });
 });
 
 export const createDiamond = asyncHandler(async (req: Request, res: Response) => {

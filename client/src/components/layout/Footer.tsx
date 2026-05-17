@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail, Shield, Truck, Award, RefreshCw } from 'lucide-react';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 
 const trustBadges = [
   { icon: Shield, label: 'Secure Payments', sub: 'SSL Encrypted' },
@@ -41,10 +42,10 @@ export default function Footer() {
               <span className="font-sans text-[9px] tracking-[0.4em] uppercase text-gold-400 font-medium">Jewellers Ltd</span>
             </div>
             <p className="text-sm font-sans text-gray-400 leading-relaxed mb-6">
-              Crafting exquisite fine jewellery since 1987. Every piece tells a story of love, crafted with ethically sourced diamonds and precious metals.
+              Crafting exquisite fine jewellery since 2026. Every piece tells a story of love, crafted with ethically sourced diamonds and precious metals.
             </p>
             <div className="flex gap-3">
-              {[Instagram, Facebook, Twitter, Youtube].map((Icon, i) => (
+              {[Instagram, Facebook, Youtube].map((Icon, i) => (
                 <a key={i} href="#" className="w-9 h-9 border border-white/20 flex items-center justify-center hover:border-gold-400 hover:text-gold-400 transition-colors">
                   <Icon size={16} />
                 </a>
@@ -70,7 +71,7 @@ export default function Footer() {
             <h4 className="text-xs font-sans font-semibold tracking-widest uppercase text-gold-400 mb-5">Services</h4>
             <ul className="space-y-3">
               {[
-                { label: 'Create Your Ring', href: '/custom-ring' },
+                ...(RING_BUILDER_ENABLED ? [{ label: 'Create Your Ring', href: '/custom-ring' }] : []),
                 { label: 'Diamond Search', href: '/diamonds' },
                 { label: 'Ring Size Guide', href: '/size-guide' },
                 { label: 'Jewellery Care', href: '/jewellery-care' },
@@ -145,9 +146,9 @@ export default function Footer() {
       {/* Bottom */}
       <div className="border-t border-white/10 py-5">
         <div className="page-container flex flex-col md:flex-row items-center justify-between gap-2 text-xs font-sans text-gray-500">
-          <p>© {new Date().getFullYear()} Sterling Jewellers Ltd. All rights reserved. Company No. 12345678</p>
+          <p>© {new Date().getFullYear()} Sterling Jewellers Ltd. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <span>VAT No. GB 123 456 789</span>
+            <span>Company number: 17027352</span>
             <span className="text-gold-500">|</span>
             <span>Member of the National Association of Jewellers</span>
           </div>

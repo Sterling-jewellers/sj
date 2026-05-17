@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -124,6 +124,130 @@ function DiamondSVG({ shape, size = 160 }: { shape: string; size?: number }) {
     {highlight}</svg>;
 }
 
+// ── Centre-stone overlay SVG (responsive, viewBox 0-100, no fixed px size) ───
+// Rendered on top of the ring photo to simulate the chosen diamond shape.
+function CentreStoneSVG({ shape }: { shape: string }) {
+  const s = shape?.toLowerCase() || 'round';
+  const C = 50, R = 43;
+  const sw = 0.85;
+  const id = `cso-${s}`;
+  const grad = (
+    <defs>
+      <radialGradient id={id} cx="35%" cy="28%" r="75%">
+        <stop offset="0%"   stopColor="#ffffff" />
+        <stop offset="28%"  stopColor="#f4fbff" />
+        <stop offset="62%"  stopColor="#c8e8f8" />
+        <stop offset="100%" stopColor="#82b8e0" />
+      </radialGradient>
+    </defs>
+  );
+  const fill = `url(#${id})`, stroke = '#4a80aa', facet = '#78aece';
+  const hi = (
+    <ellipse cx={C * 0.80} cy={C * 0.72} rx={R * 0.22} ry={R * 0.12}
+      fill="white" opacity="0.65" transform={`rotate(-38 ${C * 0.80} ${C * 0.72})`} />
+  );
+  const radPts = (n: number, r: number, off = 0) =>
+    Array.from({ length: n }, (_, i) => {
+      const a = ((i * 360) / n + off) * Math.PI / 180;
+      return [C + r * Math.cos(a), C + r * Math.sin(a)] as [number, number];
+    });
+
+  let body: ReactNode;
+  if (s === 'round') {
+    const outer = radPts(8, R, -90), table = radPts(8, R * 0.42, -90), mid = radPts(8, R, -67.5);
+    body = <>
+      <circle cx={C} cy={C} r={R} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {outer.map(([x, y], i) => <line key={`o${i}`} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.7} />)}
+      {mid.map(([x, y], i) => <line key={`m${i}`} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.4} opacity=".5" />)}
+      <polygon points={table.map(([x, y]) => `${x},${y}`).join(' ')} fill="white" fillOpacity=".65" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else if (s === 'oval') {
+    const pts = radPts(8, R, -90).map(([x, y]) => [C + (x - C) * 0.68, y] as [number, number]);
+    const tbl = radPts(8, R * 0.42, -90).map(([x, y]) => [C + (x - C) * 0.68, y] as [number, number]);
+    body = <>
+      <ellipse cx={C} cy={C} rx={R * 0.68} ry={R} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {pts.map(([x, y], i) => <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.7} />)}
+      <polygon points={tbl.map(([x, y]) => `${x},${y}`).join(' ')} fill="white" fillOpacity=".65" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else if (s === 'princess' || s === 'cushion') {
+    const h2 = R * 1.88, x0 = C - h2 / 2, y0 = C - h2 / 2, ti = h2 * 0.3, cr = s === 'cushion' ? h2 * 0.2 : 2;
+    body = <>
+      <rect x={x0} y={y0} width={h2} height={h2} rx={cr} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {([[x0, y0], [x0 + h2, y0], [x0 + h2, y0 + h2], [x0, y0 + h2]] as [number, number][]).map(([x, y], i) =>
+        <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.7} />)}
+      <rect x={x0 + ti} y={y0 + ti} width={h2 - ti * 2} height={h2 - ti * 2} fill="white" fillOpacity=".6" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else if (s === 'emerald' || s === 'asscher') {
+    const w = s === 'emerald' ? R * 1.5 : R * 1.88, h2 = s === 'emerald' ? R * 2.0 : R * 1.88;
+    const x0 = C - w / 2, y0 = C - h2 / 2, cut = w * 0.12;
+    const pts: [number, number][] = [
+      [x0 + cut, y0], [x0 + w - cut, y0], [x0 + w, y0 + cut], [x0 + w, y0 + h2 - cut],
+      [x0 + w - cut, y0 + h2], [x0 + cut, y0 + h2], [x0, y0 + h2 - cut], [x0, y0 + cut],
+    ];
+    body = <>
+      <polygon points={pts.map(([x, y]) => `${x},${y}`).join(' ')} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {[0.2, 0.35, 0.5].map((t, i) =>
+        <rect key={i} x={x0 + w * t} y={y0 + h2 * t} width={w * (1 - t * 2)} height={h2 * (1 - t * 2)}
+          fill="none" stroke={facet} strokeWidth={sw * (0.7 - i * 0.15)} opacity={0.7 - i * 0.1} />)}
+      {hi}
+    </>;
+  } else if (s === 'radiant') {
+    const w = R * 1.5, h2 = R * 2.0, x0 = C - w / 2, y0 = C - h2 / 2, cut = w * 0.12, ti = w * 0.3;
+    const pts: [number, number][] = [
+      [x0 + cut, y0], [x0 + w - cut, y0], [x0 + w, y0 + cut], [x0 + w, y0 + h2 - cut],
+      [x0 + w - cut, y0 + h2], [x0 + cut, y0 + h2], [x0, y0 + h2 - cut], [x0, y0 + cut],
+    ];
+    body = <>
+      <polygon points={pts.map(([x, y]) => `${x},${y}`).join(' ')} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {pts.map(([x, y], i) => <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.5} opacity=".6" />)}
+      <rect x={x0 + ti} y={y0 + h2 * 0.3} width={w - ti * 2} height={h2 * 0.4} fill="white" fillOpacity=".55" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else if (s === 'pear') {
+    const px = C, py = C - R * 0.9, bx = C, by = C + R * 0.9, lx = C - R * 0.62, ly = C + R * 0.1, rx2 = C + R * 0.62, ry2 = C + R * 0.1;
+    body = <>
+      <path d={`M${px},${py} C${rx2},${C - R * 0.5} ${rx2},${ry2} ${bx},${by} C${lx},${ry2} ${lx},${C - R * 0.5} ${px},${py}Z`} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {[[px, py], [lx, ly], [rx2, ry2], [bx, by]].map(([x, y], i) => <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.7} />)}
+      <ellipse cx={C} cy={C + R * 0.1} rx={R * 0.3} ry={R * 0.25} fill="white" fillOpacity=".6" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else if (s === 'marquise') {
+    const lx = C - R, rx2 = C + R, ty = C - R * 0.42, by2 = C + R * 0.42;
+    body = <>
+      <path d={`M${lx},${C} C${lx},${ty} ${rx2},${ty} ${rx2},${C} C${rx2},${by2} ${lx},${by2} ${lx},${C}Z`} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {[[lx, C], [rx2, C], [C, ty], [C, by2]].map(([x, y], i) => <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.7} />)}
+      <ellipse cx={C} cy={C} rx={R * 0.32} ry={R * 0.18} fill="white" fillOpacity=".6" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else if (s === 'heart') {
+    const w = R * 1.7;
+    body = <>
+      <path d={`M${C},${C + w * 0.42} C${C - w * 0.5},${C + w * 0.1} ${C - w * 0.55},${C - w * 0.18} ${C - w * 0.28},${C - w * 0.26} C${C - w * 0.08},${C - w * 0.34} ${C},${C - w * 0.18} ${C},${C - w * 0.05} C${C},${C - w * 0.18} ${C + w * 0.08},${C - w * 0.34} ${C + w * 0.28},${C - w * 0.26} C${C + w * 0.55},${C - w * 0.18} ${C + w * 0.5},${C + w * 0.1} ${C},${C + w * 0.42}Z`} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {[[C, C + w * 0.42], [C - w * 0.5, C + w * 0.1], [C + w * 0.5, C + w * 0.1], [C - w * 0.28, C - w * 0.26], [C + w * 0.28, C - w * 0.26]].map(([x, y], i) =>
+        <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.65} />)}
+      <ellipse cx={C} cy={C + w * 0.08} rx={R * 0.28} ry={R * 0.22} fill="white" fillOpacity=".6" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  } else {
+    // Fallback: round
+    const outer = radPts(8, R, -90), table = radPts(8, R * 0.42, -90);
+    body = <>
+      <circle cx={C} cy={C} r={R} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {outer.map(([x, y], i) => <line key={i} x1={C} y1={C} x2={x} y2={y} stroke={facet} strokeWidth={sw * 0.7} />)}
+      <polygon points={table.map(([x, y]) => `${x},${y}`).join(' ')} fill="white" fillOpacity=".65" stroke={facet} strokeWidth={sw * 0.7} />
+      {hi}
+    </>;
+  }
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      {grad}{body}
+    </svg>
+  );
+}
+
 // CSS clip-path per shape (cuts the diamond SVG into the correct outline)
 const SHAPE_CLIPS: Record<string, string> = {
   Round:    'circle(47% at 50% 50%)',
@@ -155,18 +279,17 @@ const METAL_LABELS: Record<string, string> = {
   'rose-gold':   'Rose Gold',   platinum:     'Platinum', silver: 'Silver',
 };
 
-// ── Virtual angle views (CSS 3D perspective on a single image) ───────────────
-// This creates the illusion of multiple ring angles without needing actual
-// multi-angle product photography. Blue Nile uses pre-rendered 3D models;
-// we simulate it with CSS perspective transforms.
+// ── Virtual angle views — simulate multi-angle photography via CSS perspective ─
 const ANGLE_VIEWS = [
-  { label: 'Front',  style: {} },
-  { label: '45°',    style: { transform: 'perspective(720px) rotateY(34deg) scale(0.86)',     transformOrigin: 'center' } },
-  { label: '135°',   style: { transform: 'perspective(720px) rotateY(-34deg) scale(0.86)',    transformOrigin: 'center' } },
-  { label: 'Top',    style: { transform: 'perspective(720px) rotateX(28deg) scale(0.88)',     transformOrigin: 'center' } },
+  { label: 'Front',   transformStyle: {} },
+  { label: '45°',     transformStyle: { transform: 'perspective(800px) rotateY(32deg) scale(0.88)',  transformOrigin: 'center' } },
+  { label: 'Side',    transformStyle: { transform: 'perspective(800px) rotateY(62deg) scale(0.82)',  transformOrigin: 'center' } },
+  { label: 'Top',     transformStyle: { transform: 'perspective(800px) rotateX(30deg) scale(0.87)',  transformOrigin: 'center' } },
+  { label: 'Tilt',    transformStyle: { transform: 'perspective(800px) rotateX(-20deg) rotateY(25deg) scale(0.84)', transformOrigin: 'center' } },
 ];
 
 // ── Style pickers ────────────────────────────────────────────────────────────
+// (toSettingStyle removed — Ring3DViewer now accepts headStyle/bandStyle directly)
 const HEAD_STYLES = [
   { key: 'four-claw',    label: '4-Prong',      mod: 0   },
   { key: 'six-claw',     label: '6-Prong',      mod: 45  },
@@ -192,238 +315,472 @@ const BAND_STYLES = [
 ];
 const SHAPES = ['Round', 'Princess', 'Cushion', 'Oval', 'Emerald', 'Pear', 'Radiant', 'Asscher', 'Marquise', 'Heart'];
 
-// ── Tiny shape SVG icons ─────────────────────────────────────────────────────
+// ── Diamond Shape Icons — technical line-art cuts (48×48 viewBox, scales to `size`) ──
+// Each shows: girdle outline + table polygon/shape + main facet spokes (like a real grading diagram)
 const ShapeSVG = ({ shape, active, size = 22 }: { shape: string; active: boolean; size?: number }) => {
-  const cls = `transition-colors ${active ? 'fill-charcoal' : 'fill-gray-300 group-hover:fill-gray-500'}`;
-  const s = shape.toLowerCase();
-  const c = size / 2;
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className={cls}>
-      {s === 'round'    && <circle cx={c} cy={c} r={c * 0.82} />}
-      {s === 'princess' && <rect x={c * 0.22} y={c * 0.22} width={c * 1.56} height={c * 1.56} />}
-      {s === 'cushion'  && <rect x={c * 0.22} y={c * 0.22} width={c * 1.56} height={c * 1.56} rx={size * 0.17} />}
-      {s === 'oval'     && <ellipse cx={c} cy={c} rx={c * 0.58} ry={c * 0.82} />}
-      {s === 'emerald'  && <rect x={c * 0.43} y={c * 0.12} width={c * 1.14} height={c * 1.62} rx={size * 0.05} />}
-      {s === 'pear'     && <path d={`M${c},${size * 0.88} C${size * 0.12},${size * 0.62} ${size * 0.12},${size * 0.3} ${c},${size * 0.12} C${size * 0.88},${size * 0.3} ${size * 0.88},${size * 0.62} ${c},${size * 0.88}Z`} />}
-      {s === 'radiant'  && <polygon points={`${c},${size * 0.06} ${size * 0.88},${size * 0.22} ${size * 0.94},${size * 0.78} ${c},${size * 0.94} ${size * 0.06},${size * 0.78} ${size * 0.12},${size * 0.22}`} />}
-      {s === 'asscher'  && <polygon points={`${c * 0.6},${size * 0.05} ${c * 1.4},${size * 0.05} ${size * 0.95},${c * 0.6} ${size * 0.95},${c * 1.4} ${c * 1.4},${size * 0.95} ${c * 0.6},${size * 0.95} ${size * 0.05},${c * 1.4} ${size * 0.05},${c * 0.6}`} />}
-      {s === 'marquise' && <path d={`M${c},${size * 0.08} C${size * 0.88},${c} ${c},${size * 0.92} ${size * 0.12},${c} C${size * 0.12},${size * 0.3} ${c},${size * 0.08} ${c},${size * 0.08}Z`} />}
-      {s === 'heart'    && <path d={`M${c},${size * 0.85} C${size * 0.04},${size * 0.55} ${size * 0.04},${size * 0.22} ${c * 0.72},${size * 0.18} C${c},${size * 0.1} ${c * 1.28},${size * 0.18} ${c * 1.72},${size * 0.18} C${size * 0.96},${size * 0.22} ${size * 0.96},${size * 0.55} ${c},${size * 0.85}Z`} />}
-    </svg>
-  );
+  const c  = active ? '#1a1a1a' : '#adb5bd';
+  const sw = 1.15;
+  const s  = shape.toLowerCase();
+  // shared stroke props for outline, table, and spokes
+  const outline = { fill: 'none', stroke: c, strokeWidth: sw,       strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
+  const table   = { fill: 'none', stroke: c, strokeWidth: sw * 0.6, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
+  const spk     = { stroke: c, strokeWidth: sw * 0.38, opacity: 0.55, strokeLinecap: 'round' as const };
+  // polar helper: angle from 12-o'clock, cx/cy centre, r radius → [x, y]
+  const P = (deg: number, r: number, cx = 24, cy = 24): [number, number] => [
+    cx + r * Math.cos((deg - 90) * Math.PI / 180),
+    cy + r * Math.sin((deg - 90) * Math.PI / 180),
+  ];
+  // draw N spokes from outer ring points to inner table points
+  const spokes = (outer: [number,number][], inner: [number,number][]) =>
+    outer.map(([ox, oy], i) => <line key={i} x1={ox} y1={oy} x2={inner[i % inner.length][0]} y2={inner[i % inner.length][1]} {...spk} />);
+
+  if (s === 'round') {
+    // Girdle circle r=20, table octagon at r=11 offset 22.5°, 8 facet spokes
+    const G = Array.from({length:8}, (_,i) => P(i*45, 20));
+    const T = Array.from({length:8}, (_,i) => P(i*45+22.5, 11));
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <circle cx="24" cy="24" r="20" {...outline} />
+      <polygon points={T.map(p => p.join(',')).join(' ')} {...table} />
+      {spokes(G, T)}
+    </svg>;
+  }
+
+  if (s === 'oval') {
+    // Girdle ellipse rx=14 ry=20, table ellipse rx=7.5 ry=11, 8 spokes
+    const G = Array.from({length:8}, (_,i) => { const a=(i*45-90)*Math.PI/180; return [24+14*Math.cos(a), 24+20*Math.sin(a)] as [number,number]; });
+    const T = Array.from({length:8}, (_,i) => { const a=((i*45+22.5)-90)*Math.PI/180; return [24+7.5*Math.cos(a), 24+11*Math.sin(a)] as [number,number]; });
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <ellipse cx="24" cy="24" rx="14" ry="20" {...outline} />
+      <polygon points={T.map(p => p.join(',')).join(' ')} {...table} />
+      {spokes(G, T)}
+    </svg>;
+  }
+
+  if (s === 'princess') {
+    // Square girdle, square table, 8 spokes (4 corners + 4 mid-edges)
+    const G: [number,number][] = [[4,4],[44,4],[44,44],[4,44]];
+    const M: [number,number][] = [[24,4],[44,24],[24,44],[4,24]]; // mid-edge outer
+    const Tc: [number,number][] = [[13,13],[35,13],[35,35],[13,35]]; // table corners
+    const Tm: [number,number][] = [[24,13],[35,24],[24,35],[13,24]]; // table mid-edge
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <rect x="4" y="4" width="40" height="40" {...outline} />
+      <rect x="13" y="13" width="22" height="22" {...table} />
+      {G.map(([x,y],i) => <line key={`c${i}`} x1={x} y1={y} x2={Tc[i][0]} y2={Tc[i][1]} {...spk} />)}
+      {M.map(([x,y],i) => <line key={`m${i}`} x1={x} y1={y} x2={Tm[i][0]} y2={Tm[i][1]} {...spk} />)}
+    </svg>;
+  }
+
+  if (s === 'cushion') {
+    // Rounded square — same as princess with rx=8 on outer, rx=4 on table
+    const G: [number,number][] = [[4,4],[44,4],[44,44],[4,44]];
+    const M: [number,number][] = [[24,4],[44,24],[24,44],[4,24]];
+    const Tc: [number,number][] = [[13,13],[35,13],[35,35],[13,35]];
+    const Tm: [number,number][] = [[24,13],[35,24],[24,35],[13,24]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <rect x="4" y="4" width="40" height="40" rx="9" {...outline} />
+      <rect x="13" y="13" width="22" height="22" rx="4" {...table} />
+      {G.map(([x,y],i) => <line key={`c${i}`} x1={x} y1={y} x2={Tc[i][0]} y2={Tc[i][1]} {...spk} />)}
+      {M.map(([x,y],i) => <line key={`m${i}`} x1={x} y1={y} x2={Tm[i][0]} y2={Tm[i][1]} {...spk} />)}
+    </svg>;
+  }
+
+  if (s === 'emerald') {
+    // Portrait step-cut: 3 concentric octagonal outlines (girdle + 2 step facets)
+    const o: [number,number][] = [[16,4],[32,4],[39,11],[39,37],[32,44],[16,44],[9,37],[9,11]];
+    const m: [number,number][] = [[17,9],[31,9],[36,14],[36,34],[31,39],[17,39],[12,34],[12,14]];
+    const inn: [number,number][] = [[18,15],[30,15],[33,18],[33,30],[30,33],[18,33],[15,30],[15,18]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <polygon points={o.map(p=>p.join(',')).join(' ')} {...outline} />
+      <polygon points={m.map(p=>p.join(',')).join(' ')} {...table} />
+      <polygon points={inn.map(p=>p.join(',')).join(' ')} fill="none" stroke={c} strokeWidth={sw*0.4} opacity={0.7} />
+    </svg>;
+  }
+
+  if (s === 'asscher') {
+    // Square step-cut: 3 concentric square-octagons
+    const o: [number,number][] = [[13,4],[35,4],[44,13],[44,35],[35,44],[13,44],[4,35],[4,13]];
+    const m: [number,number][] = [[15,9],[33,9],[39,15],[39,33],[33,39],[15,39],[9,33],[9,15]];
+    const inn: [number,number][] = [[17,15],[31,15],[33,17],[33,31],[31,33],[17,33],[15,31],[15,17]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <polygon points={o.map(p=>p.join(',')).join(' ')} {...outline} />
+      <polygon points={m.map(p=>p.join(',')).join(' ')} {...table} />
+      <polygon points={inn.map(p=>p.join(',')).join(' ')} fill="none" stroke={c} strokeWidth={sw*0.4} opacity={0.7} />
+    </svg>;
+  }
+
+  if (s === 'radiant') {
+    // Modified brilliant: octagonal outline + octagonal table + 8 facet spokes
+    const o: [number,number][] = [[13,4],[35,4],[44,13],[44,35],[35,44],[13,44],[4,35],[4,13]];
+    const t: [number,number][] = [[16,11],[32,11],[37,16],[37,32],[32,37],[16,37],[11,32],[11,16]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <polygon points={o.map(p=>p.join(',')).join(' ')} {...outline} />
+      <polygon points={t.map(p=>p.join(',')).join(' ')} {...table} />
+      {spokes(o, t)}
+    </svg>;
+  }
+
+  if (s === 'pear') {
+    // Teardrop: pointed bottom, rounded top lobe
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <path d="M24,44 C10,38 4,28 4,21 C4,12 13,4 24,4 C35,4 44,12 44,21 C44,28 38,38 24,44Z" {...outline} />
+      <path d="M24,38 C13,33 10,25 10,21 C10,14 16,9 24,9 C32,9 38,14 38,21 C38,25 35,33 24,38Z" {...table} />
+      <line x1="24" y1="4"  x2="24" y2="9"  {...spk} />
+      <line x1="44" y1="21" x2="38" y2="21" {...spk} />
+      <line x1="4"  y1="21" x2="10" y2="21" {...spk} />
+      <line x1="24" y1="44" x2="24" y2="38" {...spk} />
+      <line x1="9"  y1="9"  x2="15" y2="14" {...spk} />
+      <line x1="39" y1="9"  x2="33" y2="14" {...spk} />
+    </svg>;
+  }
+
+  if (s === 'marquise') {
+    // Boat shape: pointed at both ends, widest at equator
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <path d="M24,3 C38,10 46,19 46,24 C46,29 38,38 24,45 C10,38 2,29 2,24 C2,19 10,10 24,3Z" {...outline} />
+      <path d="M24,8 C36,13 41,19 41,24 C41,29 36,35 24,40 C12,35 7,29 7,24 C7,19 12,13 24,8Z" {...table} />
+      <line x1="24" y1="3"  x2="24" y2="8"  {...spk} />
+      <line x1="24" y1="45" x2="24" y2="40" {...spk} />
+      <line x1="46" y1="24" x2="41" y2="24" {...spk} />
+      <line x1="2"  y1="24" x2="7"  y2="24" {...spk} />
+      <line x1="10" y1="10" x2="14" y2="14" {...spk} />
+      <line x1="38" y1="10" x2="34" y2="14" {...spk} />
+      <line x1="10" y1="38" x2="14" y2="34" {...spk} />
+      <line x1="38" y1="38" x2="34" y2="34" {...spk} />
+    </svg>;
+  }
+
+  if (s === 'heart') {
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <path d="M24,42 C5,30 2,19 2,15 C2,8 8,4 14,4 C18,4 22,6 24,10 C26,6 30,4 34,4 C40,4 46,8 46,15 C46,19 43,30 24,42Z" {...outline} />
+      <path d="M24,35 C9,25 7,18 7,15 C7,11 10,8 14,8 C17,8 21,10 24,14 C27,10 31,8 34,8 C38,8 41,11 41,15 C41,18 39,25 24,35Z" {...table} />
+      <line x1="24" y1="42" x2="24" y2="35" {...spk} />
+      <line x1="2"  y1="15" x2="7"  y2="15" {...spk} />
+      <line x1="46" y1="15" x2="41" y2="15" {...spk} />
+      <line x1="4"  y1="7"  x2="9"  y2="11" {...spk} />
+      <line x1="44" y1="7"  x2="39" y2="11" {...spk} />
+    </svg>;
+  }
+
+  // fallback: plain circle
+  return <svg viewBox="0 0 48 48" width={size} height={size}>
+    <circle cx="24" cy="24" r="20" {...outline} />
+  </svg>;
 };
 
 // ── Live Creative Studio Compositor ─────────────────────────────────────────
-// Four-tab studio: 3D (Three.js), Ring (CSS filter), Diamond (Loupe360), Combined
 function LiveStudioCompositor({
-  images, metalFilter, shape, angleIdx, setAngleIdx, onSpin, selectedDiamond, activeMetal,
+  images, metalFilter, shape, selectedDiamond, activeMetal,
+  headStyle, bandStyle, modelUrl, onSpin,
 }: {
   images: string[];
   metalFilter: string;
   shape: string;
-  angleIdx: number;
-  setAngleIdx: (i: number) => void;
   onSpin: () => void;
   activeMetal?: string;
+  headStyle?: string;
+  bandStyle?: string;
+  modelUrl?: string;
   selectedDiamond?: { loupe360?: string; videoUrl?: string; imageUrl?: string; shape?: string; caratWeight?: number } | null;
 }) {
-  const [studioTab, setStudioTab] = useState<'3d'|'ring'|'diamond'|'combined'>('3d');
-  const ringImg     = images[0] || '';
-  const activeAngle = ANGLE_VIEWS[angleIdx];
+  // Primary view mode: 'photo' (default) | '3d' | 'diamond'
+  const [viewMode, setViewMode] = useState<'photo' | '3d' | 'diamond'>('photo');
+  // Which thumbnail is active (indexes into allThumbs below)
+  const [activeThumb, setActiveThumb] = useState(0);
+  // Zoom state for hover magnifier
+  const [zoomed, setZoomed]   = useState(false);
+  const [zoomXY, setZoomXY]   = useState({ x: 50, y: 50 });
 
-  // Diamond display source priority: Loupe360 > video > imageUrl > shape photo
+  const baseImg = images[0] || '';
+
+  // Build thumbnail list: real product images first, then virtual-angle views of img[0]
+  const allThumbs = [
+    ...images.map((src, i) => ({ src, angleStyle: {}, label: i === 0 ? 'Front' : `Photo ${i + 1}` })),
+    // Virtual-angle views of the hero image (skip if no image)
+    ...(baseImg
+      ? ANGLE_VIEWS.slice(1).map(v => ({ src: baseImg, angleStyle: v.transformStyle, label: v.label }))
+      : []),
+  ];
+
+  const currentThumb = allThumbs[activeThumb] ?? allThumbs[0];
   const hasDiamondLoupe = !!(selectedDiamond?.loupe360);
   const hasDiamondVideo = !!(selectedDiamond?.videoUrl);
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setZoomXY({
+      x: ((e.clientX - rect.left) / rect.width)  * 100,
+      y: ((e.clientY - rect.top)  / rect.height) * 100,
+    });
+  };
+
   return (
-    <div className="w-full">
+    <div className="w-full select-none">
+      {/* ── keyframe for centre stone pop-in ── */}
+      <style>{`
+        @keyframes stoneAppear {
+          0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.55); }
+          60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+          100% { opacity: 0.90; transform: translate(-50%, -50%) scale(1); }
+        }
+      `}</style>
 
-      {/* ── Studio tab bar ── */}
-      <div className="flex border-b border-gray-200 mb-2">
-        {[
-          { key: '3d'       as const, label: '3D View',  Icon: Box     },
-          { key: 'combined' as const, label: 'Combined', Icon: Layers  },
-          { key: 'ring'     as const, label: 'Ring',     Icon: Gem     },
-          { key: 'diamond'  as const, label: 'Diamond',  Icon: Diamond },
-        ].map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            onClick={() => setStudioTab(key)}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-sans font-medium border-b-2 -mb-px transition-colors',
-              studioTab === key
-                ? 'border-charcoal text-charcoal'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
-            )}
-          >
-            <Icon size={12} /> {label}
-          </button>
-        ))}
-        {/* Studio badge right */}
-        <div className="ml-auto flex items-center gap-1 pr-2">
-          <Sparkles size={9} className="text-gold-500" />
-          <span className="text-[8px] font-sans tracking-widest uppercase text-gray-400">Creative Studio</span>
-        </div>
-      </div>
+      {/* ── Blue Nile layout: left thumbnail strip + right main image ── */}
+      <div className="flex gap-3">
 
-      {/* ── Main canvas ── */}
-      <div className="relative bg-gradient-to-br from-gray-50 to-white overflow-hidden border border-gray-100"
-        style={{ aspectRatio: studioTab === '3d' ? 'unset' : '1 / 1', minHeight: studioTab === '3d' ? 380 : undefined }}>
-
-        {/* 3D TAB — Real Three.js ring configurator */}
-        {studioTab === '3d' && (
-          <Ring3DViewer
-            metal={activeMetal}
-            diamondShape={selectedDiamond?.shape || shape}
-            caratWeight={selectedDiamond?.caratWeight || 1.0}
-            className="w-full"
-          />
-        )}
-
-        {/* DIAMOND TAB */}
-        {studioTab === 'diamond' && (
-          <div className="absolute inset-0">
-            {hasDiamondLoupe ? (
-              <iframe
-                src={selectedDiamond!.loupe360}
-                className="w-full h-full border-0"
-                allow="accelerometer; gyroscope"
-                title="360° Diamond View"
-              />
-            ) : hasDiamondVideo ? (
-              <video
-                src={selectedDiamond!.videoUrl}
-                autoPlay muted loop playsInline
-                className="w-full h-full object-cover"
-              />
-            ) : selectedDiamond?.imageUrl ? (
-              <Image
-                src={selectedDiamond.imageUrl}
-                alt={`${shape} diamond`}
-                fill
-                className="object-contain p-8"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#f0f7ff]">
-                <DiamondSVG shape={selectedDiamond?.shape || shape} size={220} />
-              </div>
-            )}
-            {hasDiamondLoupe && (
-              <div className="absolute top-3 left-3 bg-blue-600 text-white text-[9px] font-sans font-bold px-2 py-1">
-                LIVE 360° VIEW
-              </div>
-            )}
-            {!hasDiamondLoupe && !hasDiamondVideo && !selectedDiamond?.imageUrl && (
-              <div className="absolute top-3 left-3 bg-[#e8f3ff] border border-[#b8d8f0] text-[9px] font-sans px-2 py-1 text-[#3a7abf]">
-                Select a diamond for live view
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* RING TAB */}
-        {studioTab === 'ring' && (
-          <>
-            {ringImg ? (
-              <div className="absolute inset-0 flex items-center justify-center"
-                style={{ filter: metalFilter, transition: 'filter 0.45s ease' }}>
-                <div className="absolute inset-0 flex items-center justify-center"
-                  style={{ ...activeAngle.style, transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>
-                  <Image src={ringImg} alt="Ring setting" fill className="object-contain p-8" priority />
-                </div>
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg viewBox="0 0 80 80" className="w-24 h-24 opacity-20">
-                  <circle cx="40" cy="40" r="30" fill="none" stroke="#888" strokeWidth="7" />
-                </svg>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* COMBINED TAB */}
-        {studioTab === 'combined' && (
-          <>
-            {ringImg ? (
-              <div className="absolute inset-0 flex items-center justify-center"
-                style={{ filter: metalFilter, transition: 'filter 0.45s ease' }}>
-                <div className="absolute inset-0 flex items-center justify-center"
-                  style={{ ...activeAngle.style, transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>
-                  <Image src={ringImg} alt="Ring setting" fill className="object-contain p-8" priority />
-                </div>
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg viewBox="0 0 80 80" className="w-24 h-24 opacity-20">
-                  <circle cx="40" cy="40" r="30" fill="none" stroke="#888" strokeWidth="7" />
-                </svg>
-              </div>
-            )}
-            {/* Diamond overlay — SVG illustration clipped to shape */}
-            {ringImg && (
-              <div className="absolute z-10 pointer-events-none"
-                style={{
-                  top: '30%', left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '19%', aspectRatio: '1 / 1',
-                  clipPath: SHAPE_CLIPS[shape] || SHAPE_CLIPS.Round,
-                  transition: 'clip-path 0.4s ease',
-                  mixBlendMode: 'screen',
-                  filter: 'brightness(1.5) contrast(1.2)',
-                }}>
-                <DiamondSVG shape={shape} size={80} />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 360° spin button (ring/combined tabs only) */}
-        {(studioTab === 'ring' || studioTab === 'combined') && (
-          <button onClick={onSpin}
-            className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-gray-200 px-2.5 py-1.5 text-[10px] font-sans font-medium text-charcoal hover:bg-white shadow-sm transition-colors">
-            <RotateCcw size={11} /> 360°
-          </button>
-        )}
-
-        {/* Shape badge */}
-        <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1 bg-white/85 border border-gray-100 px-2 py-1">
-          <ShapeSVG shape={shape} active size={11} />
-          <span className="text-[9px] font-sans text-charcoal">{shape}</span>
-        </div>
-      </div>
-
-      {/* ── 4 virtual-angle thumbnails (ring + combined tabs only) ── */}
-      {(studioTab === 'ring' || studioTab === 'combined') && (
-        <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-          {ANGLE_VIEWS.map((view, i) => (
-            <button key={i} onClick={() => setAngleIdx(i)}
+        {/* ── Left thumbnail strip (desktop) ── */}
+        <div className="hidden sm:flex flex-col gap-2 w-[72px] flex-shrink-0">
+          {allThumbs.map((thumb, i) => (
+            <button
+              key={i}
+              onClick={() => { setActiveThumb(i); setViewMode('photo'); }}
               className={cn(
-                'relative aspect-square bg-gradient-to-br from-gray-50 to-white overflow-hidden border-2 transition-all',
-                i === angleIdx ? 'border-charcoal shadow-sm' : 'border-gray-100 hover:border-gray-300'
-              )}>
-              {ringImg && (
-                <div className="absolute inset-0 flex items-center justify-center overflow-hidden"
+                'relative w-[72px] h-[72px] flex-shrink-0 border-2 overflow-hidden bg-white transition-all',
+                viewMode === 'photo' && activeThumb === i
+                  ? 'border-charcoal'
+                  : 'border-gray-200 hover:border-gray-400'
+              )}
+            >
+              {thumb.src ? (
+                <div className="absolute inset-0 flex items-center justify-center"
                   style={{ filter: metalFilter, transition: 'filter 0.4s ease' }}>
-                  <div className="absolute inset-0 flex items-center justify-center" style={{ ...view.style }}>
-                    <Image src={ringImg} alt={`${view.label} view`} fill className="object-contain p-2" />
+                  <div className="absolute inset-0 flex items-center justify-center"
+                    style={{ ...thumb.angleStyle }}>
+                    <Image src={thumb.src} alt={thumb.label} fill unoptimized className="object-contain p-1.5" />
                   </div>
                 </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                  <svg viewBox="0 0 40 40" className="w-7 h-7 opacity-25">
+                    <circle cx="20" cy="20" r="14" fill="none" stroke="#888" strokeWidth="3.5" />
+                  </svg>
+                </div>
               )}
-              <div className="absolute bottom-0 left-0 right-0 bg-white/70 py-0.5 text-center">
-                <span className="text-[8px] font-sans text-charcoal">{view.label}</span>
+              {/* Tiny stone overlay on thumbnail */}
+              {thumb.src && (
+                <div className="absolute pointer-events-none z-10"
+                  style={{
+                    top: '29%', left: '50%',
+                    width: '19%', aspectRatio: '1/1',
+                    transform: 'translate(-50%, -50%)',
+                    filter: 'drop-shadow(0 0 2px rgba(180,225,255,0.8))',
+                    opacity: 0.88,
+                  }}>
+                  <CentreStoneSVG shape={shape} />
+                </div>
+              )}
+              <div className="absolute bottom-0 inset-x-0 bg-white/80 text-center py-0.5">
+                <span className="text-[7px] font-sans text-gray-500">{thumb.label}</span>
               </div>
             </button>
           ))}
-        </div>
-      )}
 
-      {/* Spec strip */}
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
+          {/* 3D view thumbnail */}
+          <button
+            onClick={() => setViewMode('3d')}
+            className={cn(
+              'w-[72px] h-[72px] flex-shrink-0 border-2 flex flex-col items-center justify-center gap-1 bg-[#f8f8f6] transition-all',
+              viewMode === '3d' ? 'border-charcoal' : 'border-gray-200 hover:border-gray-400'
+            )}
+          >
+            <Box size={18} className="text-gray-400" />
+            <span className="text-[7px] font-sans text-gray-500">3D View</span>
+          </button>
+
+          {/* Diamond thumbnail (if diamond selected) */}
+          {selectedDiamond && (
+            <button
+              onClick={() => setViewMode('diamond')}
+              className={cn(
+                'w-[72px] h-[72px] flex-shrink-0 border-2 flex flex-col items-center justify-center gap-1 bg-[#f0f7ff] transition-all',
+                viewMode === 'diamond' ? 'border-charcoal' : 'border-gray-200 hover:border-gray-400'
+              )}
+            >
+              <Diamond size={18} className="text-blue-400" />
+              <span className="text-[7px] font-sans text-gray-500">Diamond</span>
+            </button>
+          )}
+        </div>
+
+        {/* ── Main image panel ── */}
+        <div className="flex-1 min-w-0">
+
+          {/* ── PHOTO VIEW ── */}
+          {viewMode === 'photo' && (
+            <div
+              className="relative bg-white border border-gray-100 overflow-hidden cursor-zoom-in"
+              style={{ aspectRatio: '1 / 1' }}
+              onMouseMove={handleMouseMove}
+              onMouseEnter={() => setZoomed(true)}
+              onMouseLeave={() => setZoomed(false)}
+            >
+              {currentThumb?.src ? (
+                <div
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{ filter: metalFilter, transition: 'filter 0.45s ease' }}
+                >
+                  <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                      ...currentThumb.angleStyle,
+                      ...(zoomed
+                        ? {
+                            transform: `scale(2.2) translate(${(50 - zoomXY.x) * 0.45}%, ${(50 - zoomXY.y) * 0.45}%)`,
+                            transition: 'none',
+                          }
+                        : { transition: 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' }),
+                    }}
+                  >
+                    <Image
+                      src={currentThumb.src}
+                      alt="Ring setting"
+                      fill
+                      unoptimized
+                      className="object-contain p-10"
+                      priority
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* No photo — placeholder */
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-50">
+                  <svg viewBox="0 0 80 80" className="w-20 h-20 opacity-15">
+                    <circle cx="40" cy="40" r="30" fill="none" stroke="#888" strokeWidth="6" />
+                    <circle cx="40" cy="40" r="18" fill="none" stroke="#888" strokeWidth="3" />
+                  </svg>
+                  <p className="text-[11px] font-sans text-gray-400">Ring photo coming soon</p>
+                </div>
+              )}
+
+              {/* ── Centre stone diamond overlay ── */}
+              {currentThumb?.src && (
+                <div
+                  key={shape}  // re-mounts → triggers CSS animation on shape change
+                  className="absolute pointer-events-none z-10"
+                  style={{
+                    top: '29%',
+                    left: '50%',
+                    width: '19%',
+                    aspectRatio: '1 / 1',
+                    transform: 'translate(-50%, -50%)',
+                    filter: [
+                      'drop-shadow(0 0 5px rgba(180,225,255,0.75))',
+                      'drop-shadow(0 2px 10px rgba(130,185,230,0.55))',
+                      'drop-shadow(0 0 2px rgba(255,255,255,0.9))',
+                    ].join(' '),
+                    opacity: 0.90,
+                    animation: 'stoneAppear 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
+                  }}
+                >
+                  <CentreStoneSVG shape={shape} />
+                </div>
+              )}
+
+              {/* Zoom hint */}
+              {currentThumb?.src && !zoomed && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 text-[9px] font-sans text-gray-400 bg-white/80 border border-gray-100 px-2 py-1 pointer-events-none">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                  </svg>
+                  Hover to zoom
+                </div>
+              )}
+
+              {/* 360° spin button */}
+              <button
+                onClick={onSpin}
+                className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 bg-white/95 border border-gray-200 px-2.5 py-1.5 text-[10px] font-sans font-medium text-charcoal hover:bg-white shadow-sm transition-colors"
+              >
+                <RotateCcw size={10} /> 360°
+              </button>
+
+              {/* Shape badge */}
+              <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 bg-white/90 border border-gray-100 px-2 py-1">
+                <ShapeSVG shape={shape} active size={10} />
+                <span className="text-[9px] font-sans text-charcoal">{shape}</span>
+              </div>
+            </div>
+          )}
+
+          {/* ── 3D VIEW ── */}
+          {viewMode === '3d' && (
+            <div className="relative border border-gray-100 overflow-hidden" style={{ aspectRatio: '1 / 1' }}>
+              <Ring3DViewer
+                modelUrl={modelUrl}
+                metal={activeMetal}
+                diamondShape={selectedDiamond?.shape || shape}
+                caratWeight={selectedDiamond?.caratWeight || 1.0}
+                headStyle={headStyle || 'four-claw'}
+                bandStyle={bandStyle || 'plain'}
+                className="w-full h-full"
+              />
+              <div className="absolute top-3 left-3 bg-white/90 border border-gray-100 text-[9px] font-sans px-2 py-1 text-gray-500 flex items-center gap-1">
+                <Box size={9} /> Interactive 3D · Drag to rotate
+              </div>
+            </div>
+          )}
+
+          {/* ── DIAMOND VIEW ── */}
+          {viewMode === 'diamond' && (
+            <div className="relative border border-gray-100 overflow-hidden bg-[#f4f8ff]" style={{ aspectRatio: '1 / 1' }}>
+              {hasDiamondLoupe ? (
+                <iframe src={selectedDiamond!.loupe360} className="absolute inset-0 w-full h-full border-0"
+                  allow="accelerometer; gyroscope" title="360° Diamond View" />
+              ) : hasDiamondVideo ? (
+                <video src={selectedDiamond!.videoUrl} autoPlay muted loop playsInline
+                  className="absolute inset-0 w-full h-full object-cover" />
+              ) : selectedDiamond?.imageUrl ? (
+                <Image src={selectedDiamond.imageUrl} alt="Diamond" fill unoptimized className="object-contain p-10" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <DiamondSVG shape={selectedDiamond?.shape || shape} size={220} />
+                </div>
+              )}
+              {hasDiamondLoupe && (
+                <div className="absolute top-3 left-3 bg-blue-600 text-white text-[9px] font-sans font-bold px-2 py-1">
+                  LIVE 360° VIEW
+                </div>
+              )}
+              {!hasDiamondLoupe && !hasDiamondVideo && !selectedDiamond?.imageUrl && (
+                <div className="absolute top-3 left-3 bg-[#e8f3ff] border border-[#b8d8f0] text-[9px] font-sans px-2 py-1 text-[#3a7abf]">
+                  Select a diamond for live view
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Mobile thumbnail strip (shown below main image on mobile) ── */}
+          <div className="flex sm:hidden gap-1.5 mt-2 overflow-x-auto pb-1">
+            {allThumbs.map((thumb, i) => (
+              <button
+                key={i}
+                onClick={() => { setActiveThumb(i); setViewMode('photo'); }}
+                className={cn(
+                  'relative w-14 h-14 flex-shrink-0 border-2 overflow-hidden bg-white transition-all',
+                  viewMode === 'photo' && activeThumb === i ? 'border-charcoal' : 'border-gray-200'
+                )}
+              >
+                {thumb.src && (
+                  <div className="absolute inset-0" style={{ filter: metalFilter }}>
+                    <Image src={thumb.src} alt={thumb.label} fill unoptimized className="object-contain p-1" />
+                  </div>
+                )}
+              </button>
+            ))}
+            <button onClick={() => setViewMode('3d')}
+              className={cn('w-14 h-14 flex-shrink-0 border-2 flex items-center justify-center bg-[#f8f8f6]',
+                viewMode === '3d' ? 'border-charcoal' : 'border-gray-200')}>
+              <Box size={16} className="text-gray-400" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Spec strip ── */}
+      <div className="mt-4 grid grid-cols-3 gap-1.5">
         {[
           { label: 'Band Width',       value: '~2.0 mm' },
           { label: 'Setting Height',   value: '~6.5 mm' },
-          { label: 'Estimated Weight', value: '~3.8 g'  },
+          { label: 'Est. Weight',      value: '~3.8 g'  },
         ].map(({ label, value }) => (
           <div key={label} className="bg-gray-50 border border-gray-100 px-2 py-2 text-center">
             <p className="text-[9px] font-sans uppercase tracking-wider text-gray-400">{label}</p>
@@ -435,31 +792,318 @@ function LiveStudioCompositor({
   );
 }
 
+// ── Head Style Icons — top-down technical jewellery sketches (64×64 viewBox) ──
+// Each icon shows a true bird's-eye view: faceted diamond + shaped prongs/setting
+function HeadStyleIcon({ styleKey, active }: { styleKey: string; active: boolean }) {
+  const c  = active ? '#1a1a1a' : '#adb5bd';
+  const sw = 1.0;
+  const C  = 32; // centre
+  // polar point: angle from 12-o'clock, clockwise
+  const pt = (deg: number, r: number): [number, number] => [
+    C + r * Math.cos((deg - 90) * Math.PI / 180),
+    C + r * Math.sin((deg - 90) * Math.PI / 180),
+  ];
+  // filled tapered prong polygon – tipW at stone surface, baseW at gallery
+  const prong = (deg: number, stoneR: number, galleryR: number, tipW: number, baseW: number, key: number | string) => {
+    const a  = (deg - 90) * Math.PI / 180;
+    const pa = a + Math.PI / 2;
+    const [tx, ty] = [C + stoneR  * Math.cos(a), C + stoneR  * Math.sin(a)];
+    const [bx, by] = [C + galleryR * Math.cos(a), C + galleryR * Math.sin(a)];
+    const pts = [
+      [tx + tipW  * Math.cos(pa), ty + tipW  * Math.sin(pa)],
+      [tx - tipW  * Math.cos(pa), ty - tipW  * Math.sin(pa)],
+      [bx - baseW * Math.cos(pa), by - baseW * Math.sin(pa)],
+      [bx + baseW * Math.cos(pa), by + baseW * Math.sin(pa)],
+    ];
+    return <polygon key={key} points={pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ')} fill={c} />;
+  };
+  // round brilliant top-view: girdle circle + octagonal table + 8 main facets
+  const diamond = (r: number) => {
+    const girdle = Array.from({ length: 8 }, (_, i) => pt(i * 45, r));
+    const table  = Array.from({ length: 8 }, (_, i) => pt(i * 45 + 22.5, r * 0.52));
+    return (
+      <>
+        <circle cx={C} cy={C} r={r} fill="none" stroke={c} strokeWidth={sw} />
+        <polygon points={table.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ')}
+          fill="none" stroke={c} strokeWidth={sw * 0.6} />
+        {girdle.map(([gx, gy], i) => {
+          const [tx, ty] = table[i];
+          return <line key={`f${i}`} x1={gx.toFixed(2)} y1={gy.toFixed(2)}
+            x2={tx.toFixed(2)} y2={ty.toFixed(2)} stroke={c} strokeWidth={sw * 0.45} opacity={0.65} />;
+        })}
+      </>
+    );
+  };
+  const sR = 10, gR = 13.5, bR = 24;
+  const bandRing = <circle cx={C} cy={C} r={bR} fill="none" stroke={c} strokeWidth={sw * 0.8} opacity={0.2} />;
+  const gallery  = (r = gR) => <circle cx={C} cy={C} r={r} fill="none" stroke={c} strokeWidth={sw * 0.65} opacity={0.38} />;
+
+  switch (styleKey) {
+    case 'four-claw': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}{gallery()}
+        {[0, 90, 180, 270].map((d, i) => prong(d, sR, bR, 1.35, 2.4, i))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'six-claw': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}{gallery()}
+        {[0, 60, 120, 180, 240, 300].map((d, i) => prong(d, sR, bR, 1.0, 1.9, i))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'bezel': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}
+        {/* thick bezel collar */}
+        <circle cx={C} cy={C} r={sR + 3.8} fill={c} fillOpacity={0.07} stroke={c} strokeWidth={sw * 3.2} />
+        {/* inner bezel edge */}
+        <circle cx={C} cy={C} r={sR + 0.6} fill="none" stroke={c} strokeWidth={sw * 0.5} opacity={0.4} />
+        {diamond(sR - 1)}
+      </svg>
+    );
+    case 'pave': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}
+        {/* inner pave ring */}
+        {Array.from({ length: 10 }, (_, i) => { const [x, y] = pt(i * 36, sR + 4.5); return <circle key={`i${i}`} cx={x.toFixed(2)} cy={y.toFixed(2)} r={1.7} fill={c} />; })}
+        {/* outer pave ring */}
+        {Array.from({ length: 14 }, (_, i) => { const [x, y] = pt(i * (360/14), sR + 9.2); return <circle key={`o${i}`} cx={x.toFixed(2)} cy={y.toFixed(2)} r={1.4} fill={c} />; })}
+        {[45,135,225,315].map((d, i) => prong(d, sR, sR+3.2, 0.9, 1.35, `p${i}`))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'halo': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}
+        {/* halo setting rail */}
+        <circle cx={C} cy={C} r={sR+5.5} fill="none" stroke={c} strokeWidth={sw*0.5} opacity={0.28} />
+        {/* 12 halo diamonds */}
+        {Array.from({ length: 12 }, (_, i) => { const [x, y] = pt(i*30, sR+5.5); return <circle key={i} cx={x.toFixed(2)} cy={y.toFixed(2)} r={2.1} fill={c} />; })}
+        {[0,90,180,270].map((d, i) => prong(d, sR, sR+3.5, 1.1, 1.6, i))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'classic-halo': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}
+        {/* 14 round halo stones */}
+        {Array.from({ length: 14 }, (_, i) => { const [x, y] = pt(i*(360/14), sR+5.5); return <circle key={i} cx={x.toFixed(2)} cy={y.toFixed(2)} r={2.0} fill={c} />; })}
+        {/* 4 claw bridges from halo to band */}
+        {[0,90,180,270].map((d, i) => { const [x1,y1]=pt(d,sR+8.5); const [x2,y2]=pt(d,bR); return <line key={`b${i}`} x1={x1.toFixed(2)} y1={y1.toFixed(2)} x2={x2.toFixed(2)} y2={y2.toFixed(2)} stroke={c} strokeWidth={sw*1.4} strokeLinecap="round" />; })}
+        {[0,90,180,270].map((d, i) => prong(d, sR, sR+3.5, 1.1, 1.6, i))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'floral-halo': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}
+        {/* 6 petals */}
+        {Array.from({ length: 6 }, (_, i) => {
+          const a = (i*60-90)*Math.PI/180;
+          const [px, py] = [C+16*Math.cos(a), C+16*Math.sin(a)];
+          return <ellipse key={i} cx={px.toFixed(2)} cy={py.toFixed(2)} rx={4} ry={7}
+            transform={`rotate(${i*60} ${px.toFixed(2)} ${py.toFixed(2)})`}
+            fill={c} fillOpacity={0.11} stroke={c} strokeWidth={sw*0.85} />;
+        })}
+        {/* stone at each petal centre */}
+        {Array.from({ length: 6 }, (_, i) => { const [x,y]=pt(i*60, sR+6); return <circle key={`s${i}`} cx={x.toFixed(2)} cy={y.toFixed(2)} r={2.0} fill={c} />; })}
+        {[45,135,225,315].map((d,i) => prong(d,sR,sR+3,1.0,1.4,i))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'hidden-halo': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}{gallery()}
+        {/* normal 4-prong visible setting */}
+        {[0,90,180,270].map((d,i) => prong(d,sR,bR,1.35,2.4,i))}
+        {diamond(sR)}
+        {/* hidden halo shown as dashed ring just under prong bases */}
+        <circle cx={C} cy={C} r={sR+4.8} fill="none" stroke={c} strokeWidth={sw} strokeDasharray="2 2.5" opacity={0.42} />
+        {Array.from({ length: 10 }, (_, i) => { const [x,y]=pt(i*36+18, sR+4.8); return <circle key={i} cx={x.toFixed(2)} cy={y.toFixed(2)} r={1.35} fill={c} opacity={0.4} />; })}
+      </svg>
+    );
+    case 'dual-halo': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}
+        {/* inner halo */}
+        {Array.from({ length: 10 }, (_, i) => { const [x,y]=pt(i*36, sR+4.5); return <circle key={`i${i}`} cx={x.toFixed(2)} cy={y.toFixed(2)} r={1.7} fill={c} />; })}
+        {/* outer halo */}
+        {Array.from({ length: 14 }, (_, i) => { const [x,y]=pt(i*(360/14), sR+9.2); return <circle key={`o${i}`} cx={x.toFixed(2)} cy={y.toFixed(2)} r={1.4} fill={c} />; })}
+        {[45,135,225,315].map((d,i) => prong(d,sR,sR+3,1.0,1.4,i))}
+        {diamond(sR)}
+      </svg>
+    );
+    case 'plain':
+    default: return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {bandRing}{gallery()}
+        {[0,90,180,270].map((d,i) => prong(d,sR,bR,1.35,2.4,i))}
+        {diamond(sR)}
+      </svg>
+    );
+  }
+}
+
+// ── Band Style Icons — front-profile of ring band (64×64 viewBox) ─────────────
+// Shows the band as a 3-D-feeling horizontal strip; each style has distinctive detail
+function BandStyleIcon({ styleKey, active }: { styleKey: string; active: boolean }) {
+  const c  = active ? '#1a1a1a' : '#adb5bd';
+  const sw = 1.0;
+  const lc = 'round' as const;
+  const bp = { fill: 'none', stroke: c, strokeWidth: sw, strokeLinecap: lc } as const;
+  // Band outline: arched top (domes up at centre), arched bottom, two end caps
+  // 64×64 viewBox — band occupies y≈20–44
+  const T  = 'M 4 26 Q 32 20 60 26';
+  const Bt = 'M 4 38 Q 32 44 60 38';
+  const EL = 'M 4 26 Q 2 32 4 38';
+  const ER = 'M 60 26 Q 62 32 60 38';
+  const Band = () => (
+    <>
+      <path d={T} {...bp} />
+      <path d={Bt} {...bp} />
+      <path d={EL} {...bp} />
+      <path d={ER} {...bp} />
+    </>
+  );
+
+  switch (styleKey) {
+    case 'plain': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* subtle dome highlight to show rounded cross-section */}
+        <path d="M 4 29 Q 32 23 60 29" fill="none" stroke={c} strokeWidth={sw*0.45} opacity={0.3} />
+      </svg>
+    );
+
+    case 'knife-edge': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {/* ridge line arches high — the defining spine of a knife-edge */}
+        <path d="M 4 32 Q 32 20 60 32" fill="none" stroke={c} strokeWidth={sw*1.9} strokeLinecap={lc} />
+        {/* lower half */}
+        <path d="M 4 32 Q 32 44 60 32" {...bp} />
+        {/* end-cap dots */}
+        <circle cx="4"  cy="32" r={sw*1.1} fill={c} />
+        <circle cx="60" cy="32" r={sw*1.1} fill={c} />
+      </svg>
+    );
+
+    case 'pave': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* two rows of pavé stones filling the band face */}
+        {[8,15,22,29,36,43,50,57].map((x, i) => <circle key={`r1${i}`} cx={x} cy={27} r={2.1} fill={c} />)}
+        {[8,15,22,29,36,43,50,57].map((x, i) => <circle key={`r2${i}`} cx={x} cy={35} r={2.1} fill={c} />)}
+      </svg>
+    );
+
+    case 'half-pave': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* pavé only on the right half */}
+        {[33,40,47,54].map((x, i) => <circle key={`r1${i}`} cx={x} cy={27} r={2.1} fill={c} />)}
+        {[33,40,47,54].map((x, i) => <circle key={`r2${i}`} cx={x} cy={35} r={2.1} fill={c} />)}
+        {/* dashed divider at mid-point */}
+        <line x1="28" y1="22" x2="28" y2="42" stroke={c} strokeWidth={sw*0.65} strokeDasharray="2 2.2" opacity={0.45} />
+      </svg>
+    );
+
+    case 'channel': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* channel rails */}
+        <path d="M 4 28 Q 32 22.5 60 28" fill="none" stroke={c} strokeWidth={sw*0.75} opacity={0.55} />
+        <path d="M 4 36 Q 32 41.5 60 36" fill="none" stroke={c} strokeWidth={sw*0.75} opacity={0.55} />
+        {/* channel stones — rounded rectangles between the rails */}
+        {[8,17,26,35,44,53].map((x, i) => (
+          <rect key={i} x={x-3.5} y={28} width={7} height={8} rx={0.8}
+            fill="none" stroke={c} strokeWidth={sw*0.85} />
+        ))}
+      </svg>
+    );
+
+    case 'twisted': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        {/* end-cap walls */}
+        <line x1="4"  y1="22" x2="4"  y2="42" stroke={c} strokeWidth={sw} strokeLinecap={lc} />
+        <line x1="60" y1="22" x2="60" y2="42" stroke={c} strokeWidth={sw} strokeLinecap={lc} />
+        {/* strand 1: top-left → crosses to bottom-right → back to top-right */}
+        <path d="M 4 24 C 18 24 22 40 32 32 C 42 24 46 24 60 24"
+          fill="none" stroke={c} strokeWidth={sw*1.55} strokeLinecap={lc} />
+        {/* strand 2: bottom-left → crosses to top-right → back to bottom-right */}
+        <path d="M 4 40 C 18 40 22 24 32 32 C 42 40 46 40 60 40"
+          fill="none" stroke={c} strokeWidth={sw*1.55} strokeLinecap={lc} />
+      </svg>
+    );
+
+    case 'three-stone': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* centre stone — slightly raised, larger */}
+        <ellipse cx="32" cy="26.5" rx="7.5" ry="6.5" fill="none" stroke={c} strokeWidth={sw} />
+        {/* flanking stones */}
+        <ellipse cx="14" cy="29" rx="5.5" ry="5" fill="none" stroke={c} strokeWidth={sw} />
+        <ellipse cx="50" cy="29" rx="5.5" ry="5" fill="none" stroke={c} strokeWidth={sw} />
+        {/* prong marks: N + S on each stone */}
+        {[[32,20],[32,33],[14,24],[14,34],[50,24],[50,34]].map(([x,y],i) => (
+          <circle key={i} cx={x} cy={y} r={1} fill={c} />
+        ))}
+      </svg>
+    );
+
+    case 'baguette': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* baguette stones: tall, narrow rectangles, corner-cut for step-cut look */}
+        {[7,18,29,40,51].map((x, i) => (
+          <polygon key={i}
+            points={`${x-3.5},23 ${x+3.5},23 ${x+4.5},24.5 ${x+4.5},39.5 ${x+3.5},41 ${x-3.5},41 ${x-4.5},39.5 ${x-4.5},24.5`}
+            fill="none" stroke={c} strokeWidth={sw*0.85} />
+        ))}
+      </svg>
+    );
+
+    case 'floating': return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+        {/* floating stones elevated above band face — circle + thin stem + base */}
+        {[10,22,34,46,58].map((x, i) => (
+          <g key={i}>
+            <circle cx={x} cy={24} r={4} fill="none" stroke={c} strokeWidth={sw} />
+            <line x1={x} y1={28} x2={x} y2={33} stroke={c} strokeWidth={sw*0.6} strokeLinecap="round" />
+            <line x1={x-2.5} y1={33} x2={x+2.5} y2={33} stroke={c} strokeWidth={sw*0.6} strokeLinecap="round" />
+          </g>
+        ))}
+      </svg>
+    );
+
+    default: return (
+      <svg viewBox="0 0 64 64" width="52" height="52">
+        <Band />
+      </svg>
+    );
+  }
+}
+
 // ── Style tile (Blue Nile spec: 104px tall, icon area 62px, label 11px) ───────
-function StyleTile({ label, active, onClick, mod }: {
-  label: string; active: boolean; onClick: () => void; mod?: number;
+function StyleTile({ styleKey, label, active, onClick, mod, isHead }: {
+  styleKey: string; label: string; active: boolean; onClick: () => void; mod?: number; isHead?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        'group flex flex-col items-center justify-center gap-1.5 border text-center transition-all',
+        'group flex flex-col items-center justify-center gap-1 border text-center transition-all',
         'h-[104px] px-1',
         active ? 'border-charcoal bg-charcoal/[0.04]' : 'border-gray-200 hover:border-gray-400'
       )}
     >
-      {/* 62px icon area — simple ring-style SVG silhouettes */}
       <div className="h-[62px] flex items-center justify-center">
-        <div className={cn(
-          'w-8 h-8 rounded-full border-[3px] transition-colors',
-          active ? 'border-charcoal' : 'border-gray-300 group-hover:border-gray-500'
-        )}>
-          {active && (
-            <div className="w-full h-full rounded-full flex items-center justify-center">
-              <Check size={12} className="text-charcoal" />
-            </div>
-          )}
-        </div>
+        {isHead
+          ? <HeadStyleIcon styleKey={styleKey} active={active} />
+          : <BandStyleIcon styleKey={styleKey} active={active} />
+        }
       </div>
       <span className={cn(
         'text-[11px] font-sans leading-tight capitalize',
@@ -483,24 +1127,13 @@ export default function SettingDetailClient({ slug }: { slug: string }) {
     diamond: selectedDiamond,
   } = useRingBuilder();
 
-  const [angleIdx, setAngleIdx] = useState(0);
-  const spinRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+  const spinCallbackRef = useRef<(() => void) | null>(null);
   const handleSpin = useCallback(() => {
-    if (spinRef.current) clearInterval(spinRef.current);
-    let i = 0;
-    spinRef.current = setInterval(() => {
-      i = (i + 1) % ANGLE_VIEWS.length;
-      setAngleIdx(i);
-      if (i === ANGLE_VIEWS.length - 1) {
-        clearInterval(spinRef.current!);
-        spinRef.current = null;
-      }
-    }, 600);
+    // Spin is now handled inside LiveStudioCompositor via the 360° button.
+    // This callback is kept for external callers (e.g. keyboard shortcut).
+    spinCallbackRef.current?.();
   }, []);
 
-  // Cleanup interval on unmount
-  useEffect(() => () => { if (spinRef.current) clearInterval(spinRef.current); }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['product', slug],
@@ -587,11 +1220,12 @@ export default function SettingDetailClient({ slug }: { slug: string }) {
               images={displayImgs}
               metalFilter={metalFilter}
               shape={previewShape}
-              angleIdx={angleIdx}
-              setAngleIdx={setAngleIdx}
               onSpin={handleSpin}
               selectedDiamond={selectedDiamond}
               activeMetal={activeMetal}
+              headStyle={selectedHead}
+              bandStyle={selectedBand}
+              modelUrl={product?.model3dUrl}
             />
           </div>
 
@@ -676,7 +1310,7 @@ export default function SettingDetailClient({ slug }: { slug: string }) {
                     >
                       {/* 28×28 SVG circle swatch */}
                       <svg width="28" height="28" viewBox="0 0 28 28">
-                        <circle cx="14" cy="14" r="13" fill={METAL_COLORS[m.type] || '#D4A843'} stroke={activeMetal === m.type ? '#333D29' : '#e5e7eb'} strokeWidth="1.5" />
+                        <circle cx="14" cy="14" r="13" fill={METAL_COLORS[m.type] || '#D4A843'} stroke={activeMetal === m.type ? '#000000' : '#e5e7eb'} strokeWidth="1.5" />
                       </svg>
                       <span className={cn(
                         'text-[9px] font-sans leading-none',
@@ -706,10 +1340,12 @@ export default function SettingDetailClient({ slug }: { slug: string }) {
                 {HEAD_STYLES.map(h => (
                   <StyleTile
                     key={h.key}
+                    styleKey={h.key}
                     label={h.label}
                     active={selectedHead === h.key}
                     onClick={() => setHead(h.key)}
                     mod={h.mod}
+                    isHead
                   />
                 ))}
               </div>
@@ -727,6 +1363,7 @@ export default function SettingDetailClient({ slug }: { slug: string }) {
                 {BAND_STYLES.map(b => (
                   <StyleTile
                     key={b.key}
+                    styleKey={b.key}
                     label={b.label}
                     active={selectedBand === b.key}
                     onClick={() => setBand(b.key)}

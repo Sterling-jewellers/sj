@@ -6,6 +6,7 @@ import { formatPrice } from '@/lib/utils';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ExternalLink, ShoppingBag, ChevronRight, Calendar } from 'lucide-react';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 import { IDiamond } from '@/types';
 
 // ─── Data tables ──────────────────────────────────────────────────────────────
@@ -474,16 +475,18 @@ export default function DiamondDetailClient({ id }: { id: string }) {
       </div>
 
       {/* ── Bottom CTA strip ── */}
-      <div className="bg-charcoal py-12 mt-16">
-        <div className="page-container text-center">
-          <h2 className="font-serif text-2xl font-light text-white mb-2">Ready to build your ring?</h2>
-          <p className="text-sm font-sans text-gray-300 mb-6">Pair this diamond with one of our hand-crafted ring settings</p>
-          <Link href="/custom-ring" className="btn-gold inline-flex items-center gap-2">
-            <ShoppingBag size={15} />
-            Choose a Setting for This Diamond
-          </Link>
+      {RING_BUILDER_ENABLED && (
+        <div className="bg-charcoal py-12 mt-16">
+          <div className="page-container text-center">
+            <h2 className="font-serif text-2xl font-light text-white mb-2">Ready to build your ring?</h2>
+            <p className="text-sm font-sans text-gray-300 mb-6">Pair this diamond with one of our hand-crafted ring settings</p>
+            <Link href="/custom-ring" className="btn-gold inline-flex items-center gap-2">
+              <ShoppingBag size={15} />
+              Choose a Setting for This Diamond
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -73,6 +73,25 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (_req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
 
+// GLB proxy — public, no auth. Meshy CDN (CloudFront) has no CORS headers,
+// so GLTFLoader can't fetch GLBs directly from the browser. We pipe here.
+app.get('/api/glb-proxy', async (req, res) => {
+  const glbUrl = req.query.url as string;
+  if (!glbUrl || !glbUrl.startsWith('https://')) {
+    res.status(400).json({ message: 'url query param required' }); return;
+  }
+  try {
+    const upstream = await fetch(glbUrl);
+    if (!upstream.ok) { res.status(502).json({ message: `Upstream ${upstream.status}` }); return; }
+    res.setHeader('Content-Type', 'model/gltf-binary');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (e) {
+    res.status(502).json({ message: (e as Error).message });
+  }
+});
+
 // Public template download — no auth needed (it's just column headers)
 app.get('/api/import-template', (_req, res) => {
   const ws = XLSX.utils.aoa_to_sheet([

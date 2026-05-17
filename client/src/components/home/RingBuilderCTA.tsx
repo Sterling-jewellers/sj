@@ -9,7 +9,7 @@ const steps = [
 
 export default function RingBuilderCTA() {
   return (
-    <section className="py-20 bg-charcoal text-white">
+    <section className="py-28 bg-charcoal text-white">
       <div className="page-container">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Image */}

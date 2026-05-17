@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-dashboard', range],
     queryFn: () => adminApi.getDashboard(range),
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
   });
 
   const stats = data?.data;

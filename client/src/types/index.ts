@@ -78,9 +78,14 @@ export interface IProduct {
   averageRating: number;
   reviewCount: number;
   deliveryDays: number;
+  isRingBuilder: boolean;
+  source?: string;
   aiGenerated?: boolean;
   model3dUrl?: string;
   model3dPreview?: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  sourceUrl?: string;
 }
 
 export interface IDiamond {

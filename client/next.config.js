@@ -9,6 +9,20 @@ const nextConfig = {
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'cdn.shopify.com' },
       { protocol: 'https', hostname: '**.amazonaws.com' },
+      // Pexels — real ring/jewellery photography used in product seeder
+      { protocol: 'https', hostname: 'images.pexels.com' },
+      // Wikimedia Commons — free commercial-licensed real jewellery photography
+      { protocol: 'https', hostname: 'upload.wikimedia.org' },
+      // Nivoda diamond CDN hostnames
+      { protocol: 'https', hostname: '**.cloudfront.net' },
+      { protocol: 'https', hostname: '**.nivoda.net' },
+      { protocol: 'https', hostname: 'assets-images.pixorac.com' },
+      { protocol: 'https', hostname: 'videos.loupe360.com' },
+      { protocol: 'https', hostname: 'loupe360.com' },
+      { protocol: 'https', hostname: '**.loupe360.com' },
+      // Hanron Jewellery — product catalogue images
+      { protocol: 'https', hostname: 'hanronjewellery.com' },
+      { protocol: 'https', hostname: 'www.hanronjewellery.com' },
     ],
     // Optimise images for production
     formats: ['image/avif', 'image/webp'],

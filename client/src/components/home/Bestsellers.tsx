@@ -17,7 +17,7 @@ export default function Bestsellers() {
   if (!isLoading && products.length === 0) return null;
 
   return (
-    <section className="py-20 bg-champagne">
+    <section className="py-28 bg-champagne">
       <div className="page-container">
         <div className="text-center mb-12">
           <p className="section-subtitle mb-3">Customer Favourites</p>

@@ -132,6 +132,21 @@ export const adminApi = {
   saveModel3D: (productId: string, data: { model3dUrl: string; model3dPreview?: string }) =>
     api.patch(`/admin/products/${productId}/model3d`, data),
 
+  // Hanron Jewellery scraper
+  hanronStatus: () => api.get('/admin/hanron/status'),
+  hanronSync: (data: {
+    categories?: string[];
+    detailScrape?: boolean;
+    saveToDb?: boolean;
+    defaultCategoryId?: string;
+  }) => api.post('/admin/hanron/sync', data),
+  hanronInvalidate: () => api.post('/admin/hanron/invalidate'),
+  hanronSeedCategories: () => api.post('/admin/hanron/seed-categories'),
+
+  // Nivoda Diamond API
+  nivodaStatus: () => api.get('/admin/nivoda/status'),
+  nivodaSync: () => api.post('/admin/nivoda/sync'),
+
   // Competitor / high-street price estimate
   estimateCompetitorPrice: (data: {
     name: string;

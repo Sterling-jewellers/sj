@@ -26,7 +26,7 @@ export default function FeaturedProducts() {
   const products: IProduct[] = data?.data || [];
 
   return (
-    <section className="py-20 bg-white">
+    <section className="py-28 bg-white">
       <div className="page-container">
         <div className="flex items-end justify-between mb-12">
           <div>

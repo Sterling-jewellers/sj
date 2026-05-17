@@ -14,6 +14,7 @@ import PromoBanner from '@/components/home/PromoBanner';
 import Bestsellers from '@/components/home/Bestsellers';
 import WhyChooseUs from '@/components/home/WhyChooseUs';
 import RingBuilderCTA from '@/components/home/RingBuilderCTA';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 import Testimonials from '@/components/home/Testimonials';
 import InstagramGallery from '@/components/home/InstagramGallery';
 import PersonalizedBanner from '@/components/personalization/PersonalizedBanner';
@@ -31,7 +32,7 @@ export default function HomePage() {
       <RecentlyViewed />
       <PromoBanner />
       <Bestsellers />
-      <RingBuilderCTA />
+      {RING_BUILDER_ENABLED && <RingBuilderCTA />}
       <WhyChooseUs />
       <Testimonials />
       <InstagramGallery />

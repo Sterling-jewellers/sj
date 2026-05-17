@@ -11,31 +11,30 @@ const config: Config = {
     extend: {
       colors: {
         // ── Sterling Jewellers Brand Palette ──────────────────────────────────
-        // Dark Olive  #333D29  →  charcoal (primary brand dark)
-        // Light Olive #C2C5AA  →  gold-300 (primary accent)
-        // Text #000000  ·  Background #FFFFFF / ivory
+        // Text       #000000  →  charcoal (pure black)
+        // Accent     #B08D57  →  antique gold (gold-500)
+        // Background #FFFFFF  →  pure white
 
-        charcoal: '#333D29',   // Dark Olive
+        charcoal: '#000000',   // Pure black — all primary text & UI
 
-        // "gold" key kept so all existing utility classes
-        // (bg-gold-500, text-gold-600 …) remap to olive tones automatically
+        // Warm antique gold scale — buttons, accents, dividers, hover states
         gold: {
-          50:  '#F5F6F0',
-          100: '#E8EADC',
-          200: '#D5D9C4',
-          300: '#C2C5AA',   // ← Light Olive — primary brand accent
-          400: '#A8AC8A',
-          500: '#8C9070',   // ← default accent weight
-          600: '#717558',
-          700: '#5A5E43',
-          800: '#464932',
-          900: '#333D29',   // ← Dark Olive
+          50:  '#FAF7F2',   // barely-there warm white
+          100: '#F2E8D5',   // very light gold tint — subtle section bg
+          200: '#E4CFA8',   // light gold
+          300: '#D4B47A',   // medium-light gold
+          400: '#C29B5A',   // medium gold
+          500: '#B08D57',   // ← antique gold — primary accent
+          600: '#957446',   // darker gold — hover / text accents
+          700: '#785B34',   // deep gold
+          800: '#5A4226',   // very deep
+          900: '#3C2C19',   // near-black gold
         },
 
-        champagne: '#F0F1EC',  // Soft olive-white — panels / card backgrounds
-        ivory:     '#F8F9F5',  // Near-white page base
-        'brand-dark':  '#333D29',
-        'brand-light': '#C2C5AA',
+        champagne: '#FAF7F2',  // Warm near-white — section backgrounds, cards
+        ivory:     '#FFFFFF',  // Pure white — page base
+        'brand-dark':  '#000000',
+        'brand-light': '#B08D57',
       },
       fontFamily: {
         // Lora    (serif)  → headings, product names, editorial copy
@@ -44,9 +43,9 @@ const config: Config = {
         sans:  ['var(--font-gantari)', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'hero-gradient':  'linear-gradient(135deg, #333D29 0%, #4A5538 50%, #333D29 100%)',
-        'olive-gradient': 'linear-gradient(135deg, #C2C5AA 0%, #E8EADC 50%, #C2C5AA 100%)',
-        'gold-gradient':  'linear-gradient(135deg, #C2C5AA 0%, #E8EADC 50%, #C2C5AA 100%)',
+        'hero-gradient':  'linear-gradient(135deg, #0A0A0A 0%, #1A1A1A 50%, #0A0A0A 100%)',
+        'gold-gradient':  'linear-gradient(135deg, #B08D57 0%, #D4B47A 50%, #B08D57 100%)',
+        'warm-gradient':  'linear-gradient(180deg, #FFFFFF 0%, #FAF7F2 100%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',

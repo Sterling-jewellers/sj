@@ -1,8 +1,10 @@
+import mongoose from 'mongoose';
 import { Router, Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import Anthropic from '@anthropic-ai/sdk';
+import { v2 as cloudinary } from 'cloudinary';
 import Order from '../models/Order.model';
 import Product from '../models/Product.model';
 import Diamond from '../models/Diamond.model';
@@ -10,6 +12,15 @@ import User from '../models/User.model';
 import Coupon from '../models/Coupon.model';
 import Category from '../models/Category.model';
 import { protect, adminOnly } from '../middleware/auth.middleware';
+import {
+  fetchHanronProducts,
+  checkHanronStatus,
+  invalidateHanronSession,
+} from '../services/hanron.service';
+import {
+  checkNivodaStatus,
+  syncAllNivodaDiamonds,
+} from '../services/nivoda.service';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -23,98 +34,83 @@ router.get('/dashboard', asyncHandler(async (req: Request, res: Response) => {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const prevSince = new Date(Date.now() - days * 2 * 24 * 60 * 60 * 1000);
 
-  const [
-    totalOrders,
-    revenueAgg,
-    totalProducts,
-    totalUsers,
-    totalDiamonds,
-    recentOrders,
-    // period comparisons
-    periodOrders,
-    periodRevenue,
-    prevPeriodOrders,
-    prevPeriodRevenue,
-    newUsers,
-    prevNewUsers,
-    // order status breakdown
-    statusBreakdown,
-    // revenue over time (daily)
-    revenueTimeline,
-    // top products
-    topProducts,
-  ] = await Promise.all([
-    Order.countDocuments(),
-    Order.aggregate([{ $match: { paymentStatus: 'paid' } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
-    Product.countDocuments({ isActive: true }),
-    User.countDocuments({ role: 'user' }),
-    Diamond.countDocuments(),
-    Order.find().sort({ createdAt: -1 }).limit(5).populate('user', 'firstName lastName email'),
-    // period metrics
-    Order.countDocuments({ createdAt: { $gte: since } }),
-    Order.aggregate([{ $match: { paymentStatus: 'paid', createdAt: { $gte: since } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
-    Order.countDocuments({ createdAt: { $gte: prevSince, $lt: since } }),
-    Order.aggregate([{ $match: { paymentStatus: 'paid', createdAt: { $gte: prevSince, $lt: since } } }, { $group: { _id: null, total: { $sum: '$total' } } }]),
-    User.countDocuments({ role: 'user', createdAt: { $gte: since } }),
-    User.countDocuments({ role: 'user', createdAt: { $gte: prevSince, $lt: since } }),
-    // status breakdown
-    Order.aggregate([
-      { $group: { _id: '$orderStatus', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ]),
-    // daily revenue for period
-    Order.aggregate([
-      { $match: { paymentStatus: 'paid', createdAt: { $gte: since } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          revenue: { $sum: '$total' },
-          orders: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-    // top selling products by revenue
-    Order.aggregate([
-      { $match: { paymentStatus: 'paid', createdAt: { $gte: since } } },
-      { $unwind: '$items' },
-      {
-        $group: {
-          _id: '$items.name',
-          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-          sold: { $sum: '$items.quantity' },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      { $limit: 5 },
-    ]),
-  ]);
-
-  const pRevenue = periodRevenue[0]?.total || 0;
-  const ppRevenue = prevPeriodRevenue[0]?.total || 0;
-
   const pct = (curr: number, prev: number) =>
     prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100);
 
+  // Consolidate all Order queries into one $facet — single collection pass
+  const [orderFacets, totalProducts, totalUsers, totalDiamonds] = await Promise.all([
+    Order.aggregate([
+      {
+        $facet: {
+          totalOrders:     [{ $count: 'n' }],
+          totalRevenue:    [{ $match: { paymentStatus: 'paid' } }, { $group: { _id: null, total: { $sum: '$total' } } }],
+          recentOrders:    [{ $sort: { createdAt: -1 } }, { $limit: 5 }],
+          statusBreakdown: [{ $group: { _id: '$orderStatus', count: { $sum: 1 } } }, { $sort: { count: -1 } }],
+          periodOrders:    [{ $match: { createdAt: { $gte: since } } }, { $count: 'n' }],
+          periodRevenue:   [{ $match: { paymentStatus: 'paid', createdAt: { $gte: since } } }, { $group: { _id: null, total: { $sum: '$total' } } }],
+          prevPeriodOrders:  [{ $match: { createdAt: { $gte: prevSince, $lt: since } } }, { $count: 'n' }],
+          prevPeriodRevenue: [{ $match: { paymentStatus: 'paid', createdAt: { $gte: prevSince, $lt: since } } }, { $group: { _id: null, total: { $sum: '$total' } } }],
+          revenueTimeline: [
+            { $match: { paymentStatus: 'paid', createdAt: { $gte: since } } },
+            { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, revenue: { $sum: '$total' }, orders: { $sum: 1 } } },
+            { $sort: { _id: 1 } },
+          ],
+          topProducts: [
+            { $match: { paymentStatus: 'paid', createdAt: { $gte: since } } },
+            { $unwind: '$items' },
+            { $group: { _id: '$items.name', revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }, sold: { $sum: '$items.quantity' } } },
+            { $sort: { revenue: -1 } },
+            { $limit: 5 },
+          ],
+        },
+      },
+    ]),
+    Product.countDocuments({ isActive: true }),
+    User.countDocuments({ role: 'user' }),
+    Diamond.countDocuments(),
+  ]);
+
+  const f = orderFacets[0];
+
+  // Populate users on recentOrders
+  const recentOrderIds = f.recentOrders.map((o: { _id: mongoose.Types.ObjectId }) => o._id);
+  const recentOrders = await Order.find({ _id: { $in: recentOrderIds } })
+    .sort({ createdAt: -1 })
+    .populate('user', 'firstName lastName email')
+    .lean();
+
+  // User period counts use the indexed role+createdAt compound index
+  const [newUsers, prevNewUsers] = await Promise.all([
+    User.countDocuments({ role: 'user', createdAt: { $gte: since } }),
+    User.countDocuments({ role: 'user', createdAt: { $gte: prevSince, $lt: since } }),
+  ]);
+
+  const totalOrders    = f.totalOrders[0]?.n ?? 0;
+  const totalRevenue   = f.totalRevenue[0]?.total ?? 0;
+  const periodOrders   = f.periodOrders[0]?.n ?? 0;
+  const pRevenue       = f.periodRevenue[0]?.total ?? 0;
+  const prevPeriodOrders = f.prevPeriodOrders[0]?.n ?? 0;
+  const ppRevenue      = f.prevPeriodRevenue[0]?.total ?? 0;
+
   res.json({
     totalOrders,
-    totalRevenue: revenueAgg[0]?.total || 0,
+    totalRevenue,
     totalProducts,
     totalUsers,
     totalDiamonds,
     recentOrders,
     period: {
       days,
-      orders: periodOrders,
-      revenue: pRevenue,
+      orders:        periodOrders,
+      revenue:       pRevenue,
       newUsers,
-      ordersDelta: pct(periodOrders, prevPeriodOrders),
-      revenueDelta: pct(pRevenue, ppRevenue),
+      ordersDelta:   pct(periodOrders, prevPeriodOrders),
+      revenueDelta:  pct(pRevenue, ppRevenue),
       newUsersDelta: pct(newUsers, prevNewUsers),
     },
-    statusBreakdown: statusBreakdown.map((s: { _id: string; count: number }) => ({ status: s._id, count: s.count })),
-    revenueTimeline,
-    topProducts,
+    statusBreakdown: f.statusBreakdown.map((s: { _id: string; count: number }) => ({ status: s._id, count: s.count })),
+    revenueTimeline: f.revenueTimeline,
+    topProducts:     f.topProducts,
   });
 }));
 
@@ -150,6 +146,7 @@ router.get('/products', asyncHandler(async (req: Request, res: Response) => {
 
   const [products, total] = await Promise.all([
     Product.find(query)
+      .lean()
       .populate('category', 'name')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -199,7 +196,7 @@ router.get('/diamonds', asyncHandler(async (req: Request, res: Response) => {
   if (search) query.sku = { $regex: search, $options: 'i' };
 
   const [diamonds, total] = await Promise.all([
-    Diamond.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+    Diamond.find(query).lean().sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
     Diamond.countDocuments(query),
   ]);
 
@@ -247,6 +244,7 @@ router.get('/orders', asyncHandler(async (req: Request, res: Response) => {
 
   const [orders, total] = await Promise.all([
     Order.find(query)
+      .lean()
       .populate('user', 'firstName lastName email')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -288,32 +286,33 @@ router.get('/customers', asyncHandler(async (req: Request, res: Response) => {
     ];
   }
 
-  const [users, total] = await Promise.all([
-    User.find(query).select('-password').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+  const [customers, total] = await Promise.all([
+    User.aggregate([
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+      { $lookup: { from: 'orders', localField: '_id', foreignField: 'user', as: '_orders' } },
+      {
+        $addFields: {
+          orderCount: { $size: '$_orders' },
+          totalSpent: { $sum: '$_orders.total' },
+        },
+      },
+      { $project: { password: 0, _orders: 0 } },
+    ]),
     User.countDocuments(query),
   ]);
 
-  // Attach order count per user
-  const userIds = users.map((u) => u._id);
-  const orderCounts = await Order.aggregate([
-    { $match: { user: { $in: userIds } } },
-    { $group: { _id: '$user', count: { $sum: 1 }, spent: { $sum: '$total' } } },
-  ]);
-  const orderMap = Object.fromEntries(orderCounts.map((o: { _id: string; count: number; spent: number }) => [o._id.toString(), o]));
-
-  const enriched = users.map((u) => ({
-    ...u.toObject(),
-    orderCount: orderMap[u._id.toString()]?.count || 0,
-    totalSpent: orderMap[u._id.toString()]?.spent || 0,
-  }));
-
-  res.json({ customers: enriched, total, page, pages: Math.ceil(total / limit) });
+  res.json({ customers, total, page, pages: Math.ceil(total / limit) });
 }));
 
 router.get('/customers/:id', asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id).select('-password');
+  const [user, orders] = await Promise.all([
+    User.findById(req.params.id).lean().select('-password'),
+    Order.find({ user: req.params.id }).lean().sort({ createdAt: -1 }),
+  ]);
   if (!user) { res.status(404).json({ message: 'User not found' }); return; }
-  const orders = await Order.find({ user: req.params.id }).sort({ createdAt: -1 });
   res.json({ user, orders });
 }));
 
@@ -613,6 +612,34 @@ router.patch('/products/:id/metal-images', asyncHandler(async (req: Request, res
   res.json({ success: true, images: product.metalOptions[idx].images });
 }));
 
+// Ensure an image URL is publicly accessible before sending to Meshy.
+// Non-Cloudinary URLs (e.g. scraped Hanron images) are fetched server-side
+// and re-uploaded to Cloudinary so Meshy can always download them.
+async function toPublicImageUrl(imageUrl: string): Promise<string> {
+  if (imageUrl.includes('res.cloudinary.com')) return imageUrl;
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+
+  const resp = await fetch(imageUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SterlingBot/1.0)' },
+  });
+  if (!resp.ok) throw new Error(`Could not fetch image (${resp.status}): ${imageUrl}`);
+
+  const buffer = Buffer.from(await resp.arrayBuffer());
+  const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'sterling-jewellers/3d-source', resource_type: 'image' },
+      (err, res) => (err ? reject(err) : resolve(res as { secure_url: string })),
+    );
+    stream.end(buffer);
+  });
+  return result.secure_url;
+}
+
 // ─── AI: Start 3D Model Generation (Meshy.ai image-to-3d) ────────────────────
 router.post('/ai/generate-3d', asyncHandler(async (req: Request, res: Response) => {
   const { imageUrl } = req.body as { imageUrl: string };
@@ -623,29 +650,38 @@ router.post('/ai/generate-3d', asyncHandler(async (req: Request, res: Response) 
   }
   if (!imageUrl) { res.status(400).json({ message: 'imageUrl is required' }); return; }
 
-  const r = await fetch('https://api.meshy.ai/openapi/v2/image-to-3d', {
+  let publicUrl: string;
+  try {
+    publicUrl = await toPublicImageUrl(imageUrl);
+  } catch (e) {
+    res.status(502).json({ message: `Could not retrieve image: ${(e as Error).message}` });
+    return;
+  }
+
+  const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.MESHY_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      image_url: imageUrl,
-      enable_pbr: true,          // physically based rendering materials
-      ai_model: 'meshy-4',
-      topology: 'quad',
-      target_polycount: 30000,
+      image_url: publicUrl,
+      ai_model:  'meshy-6',
     }),
   });
 
   if (!r.ok) {
-    const err = await r.text();
-    res.status(502).json({ message: `Meshy error: ${err}` });
+    const body = await r.text();
+    let msg: string;
+    try { msg = (JSON.parse(body) as { message?: string })?.message || body; } catch { msg = body; }
+    res.status(502).json({ message: `Meshy error: ${msg}` });
     return;
   }
 
-  const data = await r.json() as { result: string };
-  res.json({ taskId: data.result });
+  const data = await r.json() as { result?: string; task_id?: string };
+  const taskId = data.result ?? data.task_id;
+  if (!taskId) { res.status(502).json({ message: 'Meshy returned no task ID' }); return; }
+  res.json({ taskId });
 }));
 
 // ─── AI: Poll Meshy 3D Task Status ───────────────────────────────────────────
@@ -654,9 +690,14 @@ router.get('/ai/3d-status/:taskId', asyncHandler(async (req: Request, res: Respo
     res.status(503).json({ message: 'MESHY_API_KEY not set' }); return;
   }
 
-  const r = await fetch(`https://api.meshy.ai/openapi/v2/image-to-3d/${req.params.taskId}`, {
+  const r = await fetch(`https://api.meshy.ai/v1/image-to-3d/${req.params.taskId}`, {
     headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` },
   });
+  if (!r.ok) {
+    const body = await r.text();
+    res.status(502).json({ message: `Meshy status error: ${body}` }); return;
+  }
+
   const data = await r.json() as {
     status: string; progress?: number;
     model_urls?: { glb?: string; fbx?: string; obj?: string };
@@ -664,10 +705,11 @@ router.get('/ai/3d-status/:taskId', asyncHandler(async (req: Request, res: Respo
     task_error?: { message: string };
   };
 
-  if (data.status === 'SUCCEEDED') {
+  const status = (data.status || '').toUpperCase();
+  if (status === 'SUCCEEDED' || status === 'COMPLETE' || status === 'COMPLETED') {
     res.json({ status: 'completed', modelUrl: data.model_urls?.glb, previewUrl: data.thumbnail_url });
-  } else if (data.status === 'FAILED') {
-    res.json({ status: 'failed', error: data.task_error?.message });
+  } else if (status === 'FAILED' || status === 'ERROR') {
+    res.json({ status: 'failed', error: data.task_error?.message || 'Generation failed' });
   } else {
     res.json({ status: 'processing', progress: data.progress ?? 0 });
   }
@@ -698,5 +740,401 @@ router.get('/products/import/template', (_req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.send(buf);
 });
+
+// ─── Hanron Jewellery Integration ────────────────────────────────────────────
+
+// GET /api/admin/hanron/status
+router.get('/hanron/status', asyncHandler(async (_req: Request, res: Response) => {
+  const status = await checkHanronStatus();
+  res.json(status);
+}));
+
+// POST /api/admin/hanron/sync
+// Body: { categories?: string[], maxPages?: number, detailScrape?: boolean,
+//         saveToDb?: boolean, defaultCategoryId?: string }
+router.post('/hanron/sync', asyncHandler(async (req: Request, res: Response) => {
+  const {
+    categories,
+    saveToDb    = false,
+    defaultCategoryId,
+  } = req.body as {
+    categories?:        string[];
+    saveToDb?:          boolean;
+    defaultCategoryId?: string;
+  };
+
+  const result = await fetchHanronProducts({ categories });
+
+  if (!saveToDb) {
+    // Dry-run: return scraped data without saving
+    res.json({
+      success: true,
+      total:   result.total,
+      errors:  result.errors,
+      preview: result.products.slice(0, 50),
+    });
+    return;
+  }
+
+
+  // ── Hanron categories that should appear as ring mounts in the ring builder ───
+  // Only Gold Ladies Rings are engagement ring settings in the ring builder.
+  // Wedding Bands, Signet Rings and Gents Rings are separate product categories.
+  const RING_BUILDER_CATS = new Set([
+    'Gold Ladies Rings',
+  ]);
+
+  // ── Category map: Hanron category name → Sterling Jewellers category ─────────
+  const HANRON_CAT_MAP: Record<string, { name: string; slug: string; description: string; sortOrder: number }> = {
+    'Gold Ladies Rings':  { name: 'Engagement Ring Settings', slug: 'engagement-rings', description: 'Handcrafted engagement ring settings in 9ct and 18ct gold. Browse our ring mounts and pair with a diamond to build your perfect engagement ring.', sortOrder: 5 },
+    'Gold Gents Rings':   { name: 'Gents Rings',        slug: 'gents-rings',        description: 'Sophisticated gents gold rings for every occasion. Discover our range of 9ct and 18ct gold rings for men.',                      sortOrder: 11 },
+    'Gold Baby Rings':    { name: 'Baby & Children Rings', slug: 'baby-rings',      description: 'Delicate gold baby and children\'s rings — a timeless and cherished gift for christenings, birthdays and special occasions.',    sortOrder: 12 },
+    'Gold Signet Rings':  { name: 'Signet Rings',       slug: 'signet-rings',       description: 'Classic and personalised gold signet rings. Traditional flat and engraved styles in 9ct and 18ct yellow, white and rose gold.',  sortOrder: 13 },
+    'Gold Earrings':      { name: 'Gold Earrings',      slug: 'gold-earrings',      description: 'Stunning gold earrings — studs, hoops, drops and dangles in 9ct and 18ct yellow, white and rose gold. Free UK delivery.',        sortOrder: 20 },
+    'Gold Pendants':      { name: 'Gold Pendants',      slug: 'gold-pendants',      description: 'Beautiful gold pendants and necklaces for every style and occasion. Shop 9ct and 18ct gold pendants with free UK delivery.',      sortOrder: 30 },
+    'Gold Bracelets':     { name: 'Gold Bracelets',     slug: 'gold-bracelets',     description: 'Exquisite gold bracelets in 9ct and 18ct yellow, white and rose gold. From delicate chains to bold statement pieces.',            sortOrder: 40 },
+    'Gold Bangles':       { name: 'Gold Bangles',       slug: 'gold-bangles',       description: 'Luxurious gold bangles — a timeless addition to any jewellery collection. Shop 9ct and 18ct gold bangles online.',                sortOrder: 41 },
+    'Gold Chains':        { name: 'Gold Chains',        slug: 'gold-chains',        description: 'Fine gold chains in a range of styles, lengths and weights. Shop 9ct and 18ct yellow, white and rose gold chains.',               sortOrder: 50 },
+    'Silver Rings':       { name: 'Silver Rings',       slug: 'silver-rings',       description: 'Contemporary and classic sterling silver rings. Shop our full range of 925 sterling silver rings with free UK delivery.',          sortOrder: 60 },
+    'Silver Earrings':    { name: 'Silver Earrings',    slug: 'silver-earrings',    description: 'Beautiful sterling silver earrings — studs, hoops and drops. Shop our full 925 silver earring range with free UK delivery.',       sortOrder: 61 },
+    'Silver Pendants':    { name: 'Silver Pendants',    slug: 'silver-pendants',    description: 'Elegant sterling silver pendants and necklaces. Discover our range of 925 silver pendants with fast UK delivery.',                  sortOrder: 62 },
+    'Silver Bracelets':   { name: 'Silver Bracelets',   slug: 'silver-bracelets',   description: 'Stylish sterling silver bracelets and bangles. Shop our 925 silver bracelet collection with free UK delivery.',                    sortOrder: 63 },
+    'Diamonds':           { name: 'Diamond Jewellery',  slug: 'diamond-jewellery',  description: 'Exquisite diamond jewellery — rings, earrings, pendants and bracelets. Ethically sourced diamonds, expertly set.',                 sortOrder: 70 },
+    'Wedding Bands':      { name: 'Wedding Bands',      slug: 'wedding-bands',      description: 'Beautiful wedding bands in gold, platinum and silver. Shop classic, pave and diamond-set wedding rings for him and her.',           sortOrder: 80 },
+    'Lab Grown Diamonds': { name: 'Lab Grown Diamonds', slug: 'lab-grown-diamonds', description: 'Stunning lab grown diamond jewellery — sustainable, ethical and beautiful. Same brilliance as mined diamonds at a lower price.',    sortOrder: 85 },
+  };
+
+  // ── Pre-build category ID cache (find-or-create once per unique category) ────
+  const categoryIdCache: Record<string, string> = {};
+  if (!defaultCategoryId) {
+    for (const [hanronName, catDef] of Object.entries(HANRON_CAT_MAP)) {
+      let cat = await Category.findOne({ slug: catDef.slug });
+      if (!cat) {
+        cat = await Category.create({
+          name:        catDef.name,
+          slug:        catDef.slug,
+          description: catDef.description,
+          image:       '/images/categories/placeholder.jpg',
+          isActive:    true,
+          sortOrder:   catDef.sortOrder,
+          sourceStore: 'Hanron Jewellery',
+        });
+      }
+      categoryIdCache[hanronName] = (cat._id as mongoose.Types.ObjectId).toString();
+    }
+  }
+
+  // Save to MongoDB — upsert on slug to avoid duplicates
+  let created = 0, updated = 0;
+  const saveErrors: string[] = [...result.errors];
+
+  for (const p of result.products) {
+    try {
+      const metalParts = p.metal.split(' ');
+      const karat      = metalParts.find(x => x.includes('ct') || x.includes('k')) || '9ct';
+      const metalType  = metalParts.filter(x => x !== karat).join(' ').trim() || 'yellow-gold';
+
+      const metalTypeEnum = (['yellow-gold', 'white-gold', 'rose-gold', 'platinum', 'silver'] as const)
+        .includes(metalType as 'yellow-gold') ? metalType as 'yellow-gold' | 'white-gold' | 'rose-gold' | 'platinum' | 'silver'
+        : 'yellow-gold';
+
+      const karatEnum = (['9ct', '14ct', '18ct'] as const).includes(karat as '9ct') ? karat as '9ct' | '14ct' | '18ct' : '9ct';
+
+      // Resolve category for this product
+      const resolvedCategoryId = defaultCategoryId || categoryIdCache[p.category] || Object.values(categoryIdCache)[0] || '';
+      if (!resolvedCategoryId) {
+        saveErrors.push(`SKU ${p.sku}: no category resolved for Hanron category "${p.category}"`);
+        continue;
+      }
+
+      // ── SEO fields ────────────────────────────────────────────────────────────
+      const metalLabel  = p.metal.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      const catLabel    = HANRON_CAT_MAP[p.category]?.name || p.category;
+      const sizesText   = p.sizes.length ? ` Available in ring sizes ${p.sizes.slice(0, 6).join(', ')}${p.sizes.length > 6 ? ' and more' : ''}.` : '';
+      const priceText   = p.price ? ` From £${p.price.toFixed(2)}.` : '';
+      const gemLabel    = guessGemstone(p.name).replace('-', ' ');
+
+      const metaTitle = `${p.name} | ${metalLabel} | Sterling Jewellers`
+        .replace(/\s{2,}/g, ' ').slice(0, 70);
+
+      const metaDescription = (
+        `Buy the ${p.name} — a stunning ${metalLabel} piece from our ${catLabel} collection.` +
+        `${priceText}` +
+        ` Ethically sourced, hallmarked fine jewellery with free UK delivery & free returns.` +
+        `${sizesText}`
+      ).slice(0, 160);
+
+      const shortDescription = (
+        `${p.name} crafted in ${metalLabel}. ` +
+        (gemLabel !== 'diamond' ? `Features beautiful ${gemLabel}. ` : '') +
+        `Part of our ${catLabel} collection — ethically sourced fine jewellery with free UK delivery.`
+      ).slice(0, 200);
+
+      const purityMap: Record<string, string> = { '9ct': '37.5% pure gold', '14ct': '58.3% pure gold', '18ct': '75.0% pure gold' };
+      const purityText = purityMap[karatEnum] || '';
+
+      const htmlDescription = `
+<h2>${p.name}</h2>
+<p>This exquisite <strong>${p.name}</strong> is expertly crafted in <strong>${metalLabel}</strong>, making it a perfect addition to any jewellery collection or a wonderful gift for a loved one.</p>
+${purityText ? `<p><strong>Metal Purity:</strong> ${karatEnum} ${metalLabel} — ${purityText}. All pieces are fully hallmarked to UK assay standards.</p>` : ''}
+${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', ')}. Need a different size? Contact us for a free resize.</p>` : ''}
+<h3>Why Choose Sterling Jewellers?</h3>
+<ul>
+  <li>All pieces are fully hallmarked and ethically sourced</li>
+  <li>Free UK delivery on all orders</li>
+  <li>Free 30-day returns</li>
+  <li>Expert customer support 7 days a week</li>
+</ul>`.trim();
+
+      const seoTags = buildTags(p);
+      // Add high-value search keywords
+      seoTags.push(catLabel.toLowerCase(), metalLabel.toLowerCase(), `buy ${catLabel.toLowerCase()} online`, `${metalLabel.toLowerCase()} jewellery uk`);
+      if (p.price) {
+        if (p.price < 200)  seoTags.push('jewellery under £200', 'affordable gold jewellery');
+        if (p.price < 500)  seoTags.push('jewellery under £500');
+        if (p.price < 1000) seoTags.push('jewellery under £1000');
+      }
+      const uniqueTags = [...new Set(seoTags)];
+
+      // ── Pricing: Hanron website price × 1.8 ──────────────────────────────
+      const basePrice = +(p.price * 1.8).toFixed(2);
+
+      const doc = {
+        name:             p.name,
+        slug:             slugifyProduct(p.name + '-' + p.sku),
+        shortDescription,
+        description:      htmlDescription,
+        metaTitle,
+        metaDescription,
+        basePrice,
+        images:           p.images.length ? p.images : ['/images/placeholder.jpg'],
+        metalOptions: [{
+          type:          metalTypeEnum,
+          karat:         karatEnum,
+          images:        p.images.length ? p.images : ['/images/placeholder.jpg'],
+          isDefault:     true,
+          priceModifier: 0,
+        }],
+        variants: (p.sizes || []).map((size: string) => ({
+          size:  String(size),
+          stock: 10,
+          sku:   `${p.sku}-${String(size).replace(/\s+/g, '')}`,
+        })),
+        weightBySize: (p.sizes || []).map((size: string) => ({
+          size:        String(size),
+          weightGrams: 3.5,
+        })),
+        style:          guessStyle(p.name + ' ' + p.category),
+        gemstone:       guessGemstone(p.name),
+        settingType:    guessSettingType(p.name),
+        tags:           uniqueTags,
+        category:       resolvedCategoryId,
+        source:         'hanron',
+        isRingBuilder:  RING_BUILDER_CATS.has(p.category),
+        isActive:       true,
+        isNewArrival:   true,
+      };
+
+      const existing = await Product.findOne({ slug: doc.slug });
+      if (existing) {
+        await Product.findByIdAndUpdate(existing._id, { $set: doc });
+        updated++;
+      } else {
+        await Product.create(doc);
+        created++;
+      }
+    } catch (err) {
+      saveErrors.push(`SKU ${p.sku} (${p.name}): ${(err as Error).message}`);
+    }
+  }
+
+  // Count ring builder products that need 3D models generated
+  const needModels = await Product.find({
+    isRingBuilder: true,
+    model3dUrl: { $exists: false },
+    isActive: true,
+  }).select('_id images name').lean();
+
+  res.json({
+    success: true,
+    created,
+    updated,
+    errors:      saveErrors,
+    total:       result.total,
+    meshyQueued: needModels.length,
+  });
+
+  // ── Background: auto-generate Meshy 3D models for ring settings ──────────
+  if (process.env.MESHY_API_KEY && needModels.length > 0) {
+    const MESHY_KEY = process.env.MESHY_API_KEY;
+
+    const pollTask = async (taskId: string, productId: string) => {
+      let attempts = 0;
+      const iv = setInterval(async () => {
+        attempts++;
+        if (attempts > 24) { clearInterval(iv); return; } // max 12 min
+        try {
+          const sr = await fetch(`https://api.meshy.ai/v1/image-to-3d/${taskId}`, {
+            headers: { Authorization: `Bearer ${MESHY_KEY}` },
+          });
+          if (!sr.ok) return;
+          const sd = await sr.json() as { status: string; model_urls?: { glb?: string }; thumbnail_url?: string };
+          const s = (sd.status || '').toUpperCase();
+          if (s === 'SUCCEEDED' || s === 'COMPLETE' || s === 'COMPLETED') {
+            clearInterval(iv);
+            if (sd.model_urls?.glb) {
+              await Product.findByIdAndUpdate(productId, {
+                model3dUrl:     sd.model_urls.glb,
+                ...(sd.thumbnail_url ? { model3dPreview: sd.thumbnail_url } : {}),
+              });
+            }
+          } else if (s === 'FAILED' || s === 'ERROR') {
+            clearInterval(iv);
+          }
+        } catch { /* ignore poll errors */ }
+      }, 30_000);
+    };
+
+    // Fire Meshy for up to 5 products per sync to avoid overloading the API
+    const batch = needModels.filter(p => p.images?.[0]?.startsWith('http')).slice(0, 5);
+    for (const p of batch) {
+      try {
+        const publicImageUrl = await toPublicImageUrl(p.images[0]).catch(() => null);
+        if (!publicImageUrl) continue;
+        const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
+          method:  'POST',
+          headers: { Authorization: `Bearer ${MESHY_KEY}`, 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ image_url: publicImageUrl, ai_model: 'meshy-6' }),
+        });
+        if (!r.ok) continue;
+        const data = await r.json() as { result?: string; task_id?: string };
+        const taskId = data.result ?? data.task_id;
+        if (taskId) pollTask(taskId, String(p._id));
+      } catch { /* ignore trigger errors */ }
+    }
+  }
+}));
+
+// POST /api/admin/hanron/seed-categories — create all Hanron categories without scraping
+router.post('/hanron/seed-categories', asyncHandler(async (_req: Request, res: Response) => {
+  const CATS = [
+    { name: 'Engagement Ring Settings', slug: 'engagement-rings', description: 'Handcrafted engagement ring settings in 9ct and 18ct gold. Browse our ring mounts and build your perfect engagement ring with a GIA-certified diamond.', sortOrder: 5 },
+    { name: 'Ladies Rings',         slug: 'ladies-rings',       description: 'Elegant ladies gold rings crafted in 9ct and 18ct gold. Shop our full range with free UK delivery.',                   sortOrder: 10 },
+    { name: 'Gents Rings',          slug: 'gents-rings',        description: 'Sophisticated gents gold rings for every occasion. Discover 9ct and 18ct gold rings for men.',                         sortOrder: 11 },
+    { name: 'Baby & Children Rings',slug: 'baby-rings',         description: 'Delicate gold baby and children\'s rings — a cherished gift for christenings, birthdays and special occasions.',       sortOrder: 12 },
+    { name: 'Signet Rings',         slug: 'signet-rings',       description: 'Classic and personalised gold signet rings in 9ct and 18ct yellow, white and rose gold.',                              sortOrder: 13 },
+    { name: 'Gold Earrings',        slug: 'gold-earrings',      description: 'Stunning gold earrings — studs, hoops, drops and dangles in 9ct and 18ct gold. Free UK delivery.',                    sortOrder: 20 },
+    { name: 'Gold Pendants',        slug: 'gold-pendants',      description: 'Beautiful gold pendants and necklaces for every style. Shop 9ct and 18ct gold pendants with free UK delivery.',        sortOrder: 30 },
+    { name: 'Gold Bracelets',       slug: 'gold-bracelets',     description: 'Exquisite gold bracelets in 9ct and 18ct yellow, white and rose gold.',                                                sortOrder: 40 },
+    { name: 'Gold Bangles',         slug: 'gold-bangles',       description: 'Luxurious gold bangles — a timeless addition to any jewellery collection.',                                            sortOrder: 41 },
+    { name: 'Gold Chains',          slug: 'gold-chains',        description: 'Fine gold chains in a range of styles, lengths and weights. Shop 9ct and 18ct gold chains.',                           sortOrder: 50 },
+    { name: 'Silver Rings',         slug: 'silver-rings',       description: 'Contemporary and classic sterling silver rings with free UK delivery.',                                                 sortOrder: 60 },
+    { name: 'Silver Earrings',      slug: 'silver-earrings',    description: 'Beautiful sterling silver earrings — studs, hoops and drops with free UK delivery.',                                   sortOrder: 61 },
+    { name: 'Silver Pendants',      slug: 'silver-pendants',    description: 'Elegant sterling silver pendants and necklaces with fast UK delivery.',                                                 sortOrder: 62 },
+    { name: 'Silver Bracelets',     slug: 'silver-bracelets',   description: 'Stylish sterling silver bracelets and bangles with free UK delivery.',                                                  sortOrder: 63 },
+    { name: 'Diamond Jewellery',    slug: 'diamond-jewellery',  description: 'Exquisite diamond jewellery — rings, earrings, pendants and bracelets. Ethically sourced.',                            sortOrder: 70 },
+    { name: 'Wedding Bands',        slug: 'wedding-bands',      description: 'Beautiful wedding bands in gold, platinum and silver for him and her.',                                                 sortOrder: 80 },
+    { name: 'Lab Grown Diamonds',   slug: 'lab-grown-diamonds', description: 'Stunning lab grown diamond jewellery — sustainable, ethical and beautiful.',                                            sortOrder: 85 },
+  ];
+
+  let created = 0, existing = 0;
+  for (const c of CATS) {
+    const found = await Category.findOne({ slug: c.slug });
+    if (!found) {
+      await Category.create({ ...c, image: '/images/categories/placeholder.jpg', isActive: true, sourceStore: 'Hanron Jewellery' });
+      created++;
+    } else {
+      existing++;
+    }
+  }
+  res.json({ success: true, created, existing, total: CATS.length });
+}));
+
+// POST /api/admin/hanron/invalidate  — force re-login
+router.post('/hanron/invalidate', (_req: Request, res: Response) => {
+  invalidateHanronSession();
+  res.json({ success: true, message: 'Hanron session cleared — next request will re-authenticate' });
+});
+
+// ─── Nivoda Diamond Integration ──────────────────────────────────────────────
+
+// GET /api/admin/nivoda/status
+router.get('/nivoda/status', asyncHandler(async (_req: Request, res: Response) => {
+  const status = await checkNivodaStatus();
+  res.json(status);
+}));
+
+// POST /api/admin/nivoda/sync
+// Fetches ALL diamonds from Nivoda and upserts into the Diamond collection.
+// This can take several minutes for large inventories — responds when done.
+router.post('/nivoda/sync', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await syncAllNivodaDiamonds((bucketsDone, bucketsTotal, savedSoFar) => {
+    console.log(`[Nivoda sync] ${bucketsDone}/${bucketsTotal} buckets — ${savedSoFar} saved so far`);
+  });
+
+  res.json({
+    success: true,
+    message: `Nivoda sync complete: ${result.saved} saved, ${result.skipped} skipped from ${result.total} fetched across all shape/carat buckets`,
+    ...result,
+  });
+}));
+
+// ── Helpers used by the Hanron sync route ─────────────────────────────────────
+function slugifyProduct(text: string): string {
+  return text.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
+}
+
+function guessStyle(text: string): string {
+  const t = text.toLowerCase();
+  if (t.includes('halo'))        return 'halo';
+  if (t.includes('eternity'))    return 'eternity';
+  if (t.includes('three stone') || t.includes('trilogy')) return 'three-stone';
+  if (t.includes('pave') || t.includes('pavé'))           return 'pave';
+  if (t.includes('cluster'))     return 'cluster';
+  if (t.includes('solitaire'))   return 'solitaire';
+  if (t.includes('wedding') || t.includes('band'))        return 'band';
+  return 'solitaire';
+}
+
+function guessGemstone(name: string): string {
+  const t = name.toLowerCase();
+  if (t.includes('diamond'))  return 'diamond';
+  if (t.includes('cz'))       return 'cubic-zirconia';
+  if (t.includes('sapphire')) return 'sapphire';
+  if (t.includes('ruby'))     return 'ruby';
+  if (t.includes('emerald'))  return 'emerald';
+  if (t.includes('pearl'))    return 'pearl';
+  return 'diamond';
+}
+
+function guessSettingType(name: string): string {
+  const t = name.toLowerCase();
+  if (t.includes('claw') || t.includes('prong'))    return 'claw';
+  if (t.includes('bezel'))                           return 'bezel';
+  if (t.includes('pave') || t.includes('pavé'))     return 'pave';
+  if (t.includes('channel'))                        return 'channel';
+  if (t.includes('tension'))                        return 'tension';
+  if (t.includes('halo'))                           return 'halo';
+  return 'solitaire';
+}
+
+function buildTags(p: { name: string; category: string; metal: string }): string[] {
+  const tags: string[] = ['hanron'];
+  const t = (p.name + ' ' + p.category).toLowerCase();
+  if (t.includes('ring'))          tags.push('ring');
+  if (t.includes('earring'))       tags.push('earring');
+  if (t.includes('pendant'))       tags.push('pendant');
+  if (t.includes('bracelet'))      tags.push('bracelet');
+  if (t.includes('necklace'))      tags.push('necklace');
+  if (t.includes('wedding'))       tags.push('wedding');
+  if (t.includes('engagement'))    tags.push('engagement');
+  if (t.includes('diamond'))       tags.push('diamond');
+  if (t.includes('cz'))            tags.push('cz');
+  if (p.metal)   tags.push(p.metal.toLowerCase().replace(/\s+/g, '-'));
+  return [...new Set(tags)];
+}
 
 export default router;

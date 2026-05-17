@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 import { useState } from 'react';
 
 const CUTS = [
@@ -116,7 +117,7 @@ export default function DiamondEducationPage() {
                     className="flex-1 flex items-end justify-center pb-1 text-[9px] font-sans font-bold"
                     style={{
                       background: `hsl(48, ${Math.max(0, i * 8)}%, ${Math.min(98, 98 - i * 4)}%)`,
-                      color: i > 5 ? '#333D29' : '#666',
+                      color: i > 5 ? '#000000' : '#666',
                     }}
                   >
                     {c}
@@ -222,9 +223,11 @@ export default function DiamondEducationPage() {
             <Link href="/diamonds" className="px-8 py-3 bg-charcoal text-white text-xs font-sans font-medium tracking-widest uppercase hover:bg-black transition-colors">
               Browse Diamonds
             </Link>
-            <Link href="/custom-ring" className="px-8 py-3 border border-charcoal text-charcoal text-xs font-sans font-medium tracking-widest uppercase hover:bg-charcoal hover:text-white transition-colors">
-              Build Your Ring
-            </Link>
+            {RING_BUILDER_ENABLED && (
+              <Link href="/custom-ring" className="px-8 py-3 border border-charcoal text-charcoal text-xs font-sans font-medium tracking-widest uppercase hover:bg-charcoal hover:text-white transition-colors">
+                Build Your Ring
+              </Link>
+            )}
           </div>
         </div>
       </div>

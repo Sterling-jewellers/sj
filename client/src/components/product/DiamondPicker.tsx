@@ -42,9 +42,9 @@ interface Filters {
 }
 
 const DEFAULT_FILTERS: Filters = {
-  shape: '', caratMin: 0, caratMax: 10,
+  shape: '', caratMin: 0, caratMax: 100,
   cut: '', color: '', clarity: '',
-  priceMin: 0, priceMax: 999999,
+  priceMin: 0, priceMax: 99_999_999,  // no ceiling — Nivoda diamonds can be £1M+
 };
 
 interface DiamondPickerProps {
@@ -65,7 +65,7 @@ export default function DiamondPicker({ selectedDiamond, onSelect }: DiamondPick
     queryKey: ['diamonds-picker'],
     queryFn: () => diamondsApi.getAll({ limit: 500 }),
     enabled: open,
-    staleTime: 60_000,
+    staleTime: 15 * 60_000,
   });
 
   const allDiamonds: IDiamond[] = data?.data?.diamonds || data?.data || [];

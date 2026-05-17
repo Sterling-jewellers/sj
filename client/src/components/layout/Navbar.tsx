@@ -9,16 +9,19 @@ import { useAuthStore } from '@/store/authStore';
 import MegaMenu from './MegaMenu';
 import SearchModal from './SearchModal';
 import { cn } from '@/lib/utils';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 
-const navLinks = [
-  { label: 'Engagement Rings', href: '/category/engagement-rings', hasMenu: true  },
-  { label: 'Rings',            href: '/category/rings',            hasMenu: true  },
-  { label: 'Wedding Rings',    href: '/category/wedding-rings',    hasMenu: true  },
-  { label: 'Diamonds',         href: '/diamonds',                  hasMenu: true  },
-  { label: 'Jewellery',        href: '/category/jewellery',        hasMenu: true  },
-  { label: 'Create Your Ring', href: '/custom-ring',               hasMenu: false },
-  { label: 'Book Appointment', href: '/book-appointment',          hasMenu: false },
+const allNavLinks = [
+  { label: 'Engagement Rings', href: '/category/engagement-rings', hasMenu: true,  ringBuilder: false },
+  { label: 'Rings',            href: '/category/rings',            hasMenu: true,  ringBuilder: false },
+  { label: 'Wedding Rings',    href: '/category/wedding-rings',    hasMenu: true,  ringBuilder: false },
+  { label: 'Diamonds',         href: '/diamonds',                  hasMenu: true,  ringBuilder: false },
+  { label: 'Jewellery',        href: '/category/jewellery',        hasMenu: true,  ringBuilder: false },
+  { label: 'Create Your Ring', href: '/custom-ring',               hasMenu: false, ringBuilder: true  },
+  { label: 'Book Appointment', href: '/book-appointment',          hasMenu: false, ringBuilder: false },
 ];
+
+const navLinks = allNavLinks.filter(l => !l.ringBuilder || RING_BUILDER_ENABLED);
 
 export default function Navbar() {
   const [activeMenu, setActiveMenu]   = useState<string | null>(null);
@@ -97,7 +100,7 @@ export default function Navbar() {
                   href={link.href}
                   className={cn(
                     'group relative flex items-center gap-0.5 px-3.5 py-5 text-[13.5px] font-sans font-normal',
-                    'tracking-normal text-[#2d2d2d] transition-colors duration-150',
+                    'tracking-normal text-black transition-colors duration-150',
                     'hover:text-black',
                   )}
                 >
@@ -187,7 +190,7 @@ export default function Navbar() {
                 key={link.label}
                 href={link.href}
                 onClick={() => setMobileOpen(false)}
-                className="flex items-center justify-between px-6 py-3.5 text-[14px] font-sans font-normal text-[#2d2d2d] hover:bg-gray-50 border-b border-gray-50 transition-colors"
+                className="flex items-center justify-between px-6 py-3.5 text-[14px] font-sans font-normal text-black hover:bg-gray-50 border-b border-gray-50 transition-colors"
               >
                 {link.label}
                 {link.hasMenu && <ChevronDown size={13} className="text-gray-400" />}

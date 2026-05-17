@@ -19,6 +19,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   if (req.query.gemstone) query.gemstone = req.query.gemstone;
   if (req.query.style) query.style = req.query.style;
   if (req.query.isFeatured) query.isFeatured = req.query.isFeatured === 'true';
+  if (req.query.isRingBuilder !== undefined) query.isRingBuilder = req.query.isRingBuilder === 'true';
   if (req.query.search) query.$text = { $search: req.query.search as string };
 
   const sortMap: Record<string, Record<string, 1 | -1>> = {
@@ -31,7 +32,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   const sort = sortMap[req.query.sort as string] || { createdAt: -1 };
 
   const [products, total] = await Promise.all([
-    Product.find(query).sort(sort).skip(skip).limit(limit).populate('category', 'name slug'),
+    Product.find(query).lean().sort(sort).skip(skip).limit(limit).populate('category', 'name slug'),
     Product.countDocuments(query),
   ]);
 
@@ -39,7 +40,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getProductBySlug = asyncHandler(async (req: Request, res: Response) => {
-  const product = await Product.findOne({ slug: req.params.slug, isActive: true }).populate('category', 'name slug');
+  const product = await Product.findOne({ slug: req.params.slug, isActive: true }).lean().populate('category', 'name slug');
   if (!product) {
     res.status(404).json({ message: 'Product not found' });
     return;
@@ -49,14 +50,14 @@ export const getProductBySlug = asyncHandler(async (req: Request, res: Response)
 
 export const getFeaturedProducts = asyncHandler(async (_req: Request, res: Response) => {
   const products = await Product.find({ isFeatured: true, isActive: true })
-    .limit(8)
+    .lean().limit(8)
     .populate('category', 'name slug');
   res.json(products);
 });
 
 export const getBestsellers = asyncHandler(async (_req: Request, res: Response) => {
   const products = await Product.find({ isBestseller: true, isActive: true })
-    .sort({ soldCount: -1 })
+    .lean().sort({ soldCount: -1 })
     .limit(8)
     .populate('category', 'name slug');
   res.json(products);
@@ -69,7 +70,7 @@ export const getRelatedProducts = asyncHandler(async (req: Request, res: Respons
     category: product.category,
     _id: { $ne: product._id },
     isActive: true,
-  }).limit(4).populate('category', 'name slug');
+  }).lean().limit(4).populate('category', 'name slug');
   res.json(related);
 });
 

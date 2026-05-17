@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Package, Diamond, ShoppingBag, Users, UserCog, Tag, Settings, LogOut, Loader2, FolderOpen, Upload } from 'lucide-react';
+import { LayoutDashboard, Package, Diamond, ShoppingBag, Users, UserCog, Tag, Settings, LogOut, Loader2, FolderOpen, Upload, Globe } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,8 @@ const navItems = [
   { icon: FolderOpen, label: 'Categories', href: '/admin/categories' },
   { icon: Diamond, label: 'Diamonds', href: '/admin/diamonds' },
   { icon: Upload, label: 'Bulk Import', href: '/admin/import' },
+  { icon: Globe, label: 'Hanron Sync', href: '/admin/hanron' },
+  { icon: Diamond, label: 'Nivoda Sync', href: '/admin/nivoda' },
   { icon: ShoppingBag, label: 'Orders', href: '/admin/orders' },
   { icon: Users, label: 'Customers', href: '/admin/customers' },
   { icon: UserCog, label: 'Users', href: '/admin/users' },

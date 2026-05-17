@@ -15,7 +15,7 @@ export default function Testimonials() {
   const [active, setActive] = useState(0);
 
   return (
-    <section className="py-20 bg-white">
+    <section className="py-28 bg-white">
       <div className="page-container">
         <div className="text-center mb-14">
           <p className="section-subtitle mb-3">Customer Stories</p>

@@ -24,11 +24,9 @@ export default function AboutPage() {
             <h2 className="section-title mb-6">A Legacy of Craftsmanship</h2>
             <div className="w-12 h-0.5 bg-gold-400 mb-6" />
             <p className="text-sm font-sans text-gray-600 leading-relaxed mb-4">
-              Sterling Jewellers was founded in 1987 on Bond Street, London, with a simple belief: that every piece of jewellery should tell a story. For over 35 years, we've been creating exquisite pieces that mark life's most precious moments.
-            </p>
+              Every meaningful piece of jewellery begins with a story. Ours started in 2026, not in a showroom, but in a simple conversation between two friends who believed jewellery had lost its emotion. It had become something you buy, not something you feel. So we set out to change that — to create pieces that carry the excitement of a proposal, the depth of a promise, and the beauty of moments that last forever.            </p>
             <p className="text-sm font-sans text-gray-600 leading-relaxed mb-6">
-              From our flagship boutique in London's jewellery quarter, our master craftsmen handcraft each piece using ethically sourced diamonds, platinum, and precious gold. Every ring, necklace, and bracelet is a work of art designed to be cherished for generations.
-            </p>
+              With no legacy name behind us, just passion and purpose, we focused on what truly matters — ethically sourced diamonds, honest craftsmanship, and designs that feel personal. Today, we continue to create jewellery that isn’t just worn, but lived with — because to us, it’s never just jewellery, it’s your story.            </p>
             <Link href="/products" className="btn-outline-gold inline-block">Explore Our Collections</Link>
           </div>
           <div className="relative h-96">
@@ -56,11 +54,11 @@ export default function AboutPage() {
         </div>
 
         {/* CTA */}
-        <div className="bg-charcoal text-white text-center py-16 px-8">
+        {/* <div className="bg-charcoal text-white text-center py-16 px-8">
           <h2 className="font-serif text-4xl font-light mb-4">Visit Our London Boutique</h2>
           <p className="text-sm font-sans text-gray-300 mb-6">48 Bond Street, London, W1S 1RB · Mon–Sat 9am–6pm · Sun 11am–5pm</p>
           <Link href="/contact" className="btn-gold inline-block">Book a Consultation</Link>
-        </div>
+        </div> */}
       </div>
     </div>
   );

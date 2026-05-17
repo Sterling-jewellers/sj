@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { RING_BUILDER_ENABLED } from '@/lib/features';
 
 // ── SVG Illustrations (inline, brand-accurate, no external images) ────────────
 
@@ -12,12 +13,12 @@ const RingIllustration = () => (
   <svg viewBox="0 0 500 500" className="w-full h-full" aria-hidden>
     <defs>
       <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%"   stopColor="#C2C5AA" stopOpacity="0.25" />
-        <stop offset="100%" stopColor="#333D29" stopOpacity="0"    />
+        <stop offset="0%"   stopColor="#D4B47A" stopOpacity="0.25" />
+        <stop offset="100%" stopColor="#0A0A0A" stopOpacity="0"    />
       </radialGradient>
       <radialGradient id="diamondGlow" cx="50%" cy="40%" r="60%">
-        <stop offset="0%"   stopColor="#F8F9F5" stopOpacity="0.9" />
-        <stop offset="100%" stopColor="#C2C5AA" stopOpacity="0.3" />
+        <stop offset="0%"   stopColor="#FFFFFF" stopOpacity="0.9" />
+        <stop offset="100%" stopColor="#D4B47A" stopOpacity="0.3" />
       </radialGradient>
       <filter id="glow">
         <feGaussianBlur stdDeviation="3" result="blur" />
@@ -29,51 +30,51 @@ const RingIllustration = () => (
     <circle cx="250" cy="250" r="200" fill="url(#ringGlow)" />
 
     {/* Ring band */}
-    <ellipse cx="250" cy="310" rx="90" ry="22" fill="none" stroke="#C2C5AA" strokeWidth="18"
+    <ellipse cx="250" cy="310" rx="90" ry="22" fill="none" stroke="#D4B47A" strokeWidth="18"
       strokeLinecap="round" opacity="0.9" />
-    <ellipse cx="250" cy="310" rx="90" ry="22" fill="none" stroke="#8C9070" strokeWidth="2"
+    <ellipse cx="250" cy="310" rx="90" ry="22" fill="none" stroke="#B08D57" strokeWidth="2"
       strokeLinecap="round" opacity="0.5" />
 
     {/* Setting prongs */}
     {[225, 240, 260, 275].map((x, i) => (
       <line key={i} x1={x} y1="275" x2={x + (i < 2 ? -3 : 3)} y2="205"
-        stroke="#C2C5AA" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+        stroke="#D4B47A" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
     ))}
 
     {/* Diamond (octagonal brilliant shape) */}
     <polygon
       points="250,162 274,174 286,198 274,222 250,234 226,222 214,198 226,174"
-      fill="url(#diamondGlow)" stroke="#C2C5AA" strokeWidth="1.5" filter="url(#glow)"
+      fill="url(#diamondGlow)" stroke="#D4B47A" strokeWidth="1.5" filter="url(#glow)"
     />
     {/* Diamond facets */}
-    <line x1="250" y1="162" x2="250" y2="234" stroke="#C2C5AA" strokeWidth="0.5" opacity="0.5" />
-    <line x1="214" y1="198" x2="286" y2="198" stroke="#C2C5AA" strokeWidth="0.5" opacity="0.5" />
+    <line x1="250" y1="162" x2="250" y2="234" stroke="#D4B47A" strokeWidth="0.5" opacity="0.5" />
+    <line x1="214" y1="198" x2="286" y2="198" stroke="#D4B47A" strokeWidth="0.5" opacity="0.5" />
     <polygon points="250,175 270,185 270,211 250,221 230,211 230,185"
-      fill="none" stroke="#C2C5AA" strokeWidth="0.5" opacity="0.4" />
+      fill="none" stroke="#D4B47A" strokeWidth="0.5" opacity="0.4" />
 
     {/* Sparkle 1 */}
     <g className="animate-[sparkle1_3s_ease-in-out_infinite]" style={{ transformOrigin: '200px 150px' }}>
-      <line x1="200" y1="140" x2="200" y2="160" stroke="#F8F9F5" strokeWidth="2" strokeLinecap="round" />
-      <line x1="190" y1="150" x2="210" y2="150" stroke="#F8F9F5" strokeWidth="2" strokeLinecap="round" />
-      <line x1="193" y1="143" x2="207" y2="157" stroke="#F8F9F5" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
-      <line x1="207" y1="143" x2="193" y2="157" stroke="#F8F9F5" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+      <line x1="200" y1="140" x2="200" y2="160" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+      <line x1="190" y1="150" x2="210" y2="150" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+      <line x1="193" y1="143" x2="207" y2="157" stroke="#FFFFFF" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+      <line x1="207" y1="143" x2="193" y2="157" stroke="#FFFFFF" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
     </g>
 
     {/* Sparkle 2 */}
     <g className="animate-[sparkle2_4s_ease-in-out_0.8s_infinite]" style={{ transformOrigin: '310px 170px' }}>
-      <line x1="310" y1="162" x2="310" y2="178" stroke="#C2C5AA" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="302" y1="170" x2="318" y2="170" stroke="#C2C5AA" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="310" y1="162" x2="310" y2="178" stroke="#D4B47A" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="302" y1="170" x2="318" y2="170" stroke="#D4B47A" strokeWidth="1.5" strokeLinecap="round" />
     </g>
 
     {/* Sparkle 3 */}
     <g className="animate-[sparkle1_5s_ease-in-out_1.6s_infinite]" style={{ transformOrigin: '175px 250px' }}>
-      <line x1="175" y1="244" x2="175" y2="256" stroke="#8C9070" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="169" y1="250" x2="181" y2="250" stroke="#8C9070" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="175" y1="244" x2="175" y2="256" stroke="#B08D57" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="169" y1="250" x2="181" y2="250" stroke="#B08D57" strokeWidth="1.5" strokeLinecap="round" />
     </g>
 
     {/* GIA cert suggestion */}
     <rect x="195" y="355" width="110" height="30" rx="2" fill="#1C1C1C" opacity="0.7" />
-    <text x="250" y="373" textAnchor="middle" fill="#C2C5AA" fontSize="10" fontFamily="sans-serif" letterSpacing="2">
+    <text x="250" y="373" textAnchor="middle" fill="#D4B47A" fontSize="10" fontFamily="sans-serif" letterSpacing="2">
       GIA CERTIFIED
     </text>
   </svg>
@@ -84,13 +85,13 @@ const DiamondIllustration = () => (
   <svg viewBox="0 0 500 500" className="w-full h-full" aria-hidden>
     <defs>
       <radialGradient id="brilliantGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%"   stopColor="#F8F9F5" stopOpacity="0.95" />
-        <stop offset="40%"  stopColor="#C2C5AA" stopOpacity="0.6"  />
-        <stop offset="100%" stopColor="#333D29" stopOpacity="0"    />
+        <stop offset="0%"   stopColor="#FFFFFF" stopOpacity="0.95" />
+        <stop offset="40%"  stopColor="#D4B47A" stopOpacity="0.6"  />
+        <stop offset="100%" stopColor="#0A0A0A" stopOpacity="0"    />
       </radialGradient>
       <radialGradient id="facetFill" cx="50%" cy="50%" r="50%">
-        <stop offset="0%"   stopColor="#F0F1EC" stopOpacity="0.9" />
-        <stop offset="100%" stopColor="#8C9070" stopOpacity="0.3" />
+        <stop offset="0%"   stopColor="#FAF7F2" stopOpacity="0.9" />
+        <stop offset="100%" stopColor="#B08D57" stopOpacity="0.3" />
       </radialGradient>
       <filter id="brilliantGlow">
         <feGaussianBlur stdDeviation="6" result="blur" />
@@ -104,12 +105,12 @@ const DiamondIllustration = () => (
     {/* Main brilliant outline (58 facet top view approximation) */}
     <polygon
       points="250,80 320,100 370,150 390,220 370,290 320,340 250,360 180,340 130,290 110,220 130,150 180,100"
-      fill="url(#facetFill)" stroke="#C2C5AA" strokeWidth="1.5" filter="url(#brilliantGlow)"
+      fill="url(#facetFill)" stroke="#D4B47A" strokeWidth="1.5" filter="url(#brilliantGlow)"
     />
     {/* Table facet */}
     <polygon
       points="250,140 302,158 322,208 302,258 250,276 198,258 178,208 198,158"
-      fill="none" stroke="#C2C5AA" strokeWidth="1" opacity="0.7"
+      fill="none" stroke="#D4B47A" strokeWidth="1" opacity="0.7"
     />
     {/* Radiant facet lines */}
     {Array.from({ length: 12 }, (_, i) => {
@@ -119,7 +120,7 @@ const DiamondIllustration = () => (
       const x2 = 250 + 140 * Math.cos(angle);
       const y2 = 208 + 140 * Math.sin(angle);
       return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke="#C2C5AA" strokeWidth="0.8" opacity={i % 2 === 0 ? 0.6 : 0.3} />;
+        stroke="#D4B47A" strokeWidth="0.8" opacity={i % 2 === 0 ? 0.6 : 0.3} />;
     })}
     {/* Star facets */}
     {Array.from({ length: 8 }, (_, i) => {
@@ -127,20 +128,20 @@ const DiamondIllustration = () => (
       const x = 250 + 95 * Math.cos(a);
       const y = 208 + 95 * Math.sin(a);
       return <line key={i} x1="250" y1="208" x2={x} y2={y}
-        stroke="#F8F9F5" strokeWidth="0.6" opacity="0.5" />;
+        stroke="#FFFFFF" strokeWidth="0.6" opacity="0.5" />;
     })}
 
     {/* Certification logo area */}
-    <rect x="210" y="390" width="80" height="24" rx="12" fill="#C2C5AA" opacity="0.2" />
-    <text x="250" y="406" textAnchor="middle" fill="#C2C5AA" fontSize="9" fontFamily="sans-serif" letterSpacing="2">
+    <rect x="210" y="390" width="80" height="24" rx="12" fill="#D4B47A" opacity="0.2" />
+    <text x="250" y="406" textAnchor="middle" fill="#D4B47A" fontSize="9" fontFamily="sans-serif" letterSpacing="2">
       IGI · GIA
     </text>
 
     {/* Glint animations */}
     {[{x:170,y:155,d:0},{x:340,y:175,d:1.2},{x:320,y:310,d:2.4},{x:155,y:275,d:0.8}].map(({x,y,d},i) => (
       <g key={i} style={{ animation: `sparkle1 ${3+d}s ease-in-out ${d}s infinite`, transformOrigin:`${x}px ${y}px` }}>
-        <line x1={x} y1={y-7} x2={x} y2={y+7} stroke="#F8F9F5" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1={x-7} y1={y} x2={x+7} y2={y} stroke="#F8F9F5" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1={x} y1={y-7} x2={x} y2={y+7} stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1={x-7} y1={y} x2={x+7} y2={y} stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
       </g>
     ))}
   </svg>
@@ -151,13 +152,13 @@ const WeddingBandsIllustration = () => (
   <svg viewBox="0 0 500 500" className="w-full h-full" aria-hidden>
     <defs>
       <radialGradient id="bandsGlow" cx="50%" cy="50%" r="60%">
-        <stop offset="0%"   stopColor="#C2C5AA" stopOpacity="0.2" />
-        <stop offset="100%" stopColor="#333D29" stopOpacity="0"   />
+        <stop offset="0%"   stopColor="#D4B47A" stopOpacity="0.2" />
+        <stop offset="100%" stopColor="#0A0A0A" stopOpacity="0"   />
       </radialGradient>
       <linearGradient id="band1" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%"   stopColor="#F8F9F5" />
-        <stop offset="50%"  stopColor="#C2C5AA" />
-        <stop offset="100%" stopColor="#8C9070" />
+        <stop offset="0%"   stopColor="#FFFFFF" />
+        <stop offset="50%"  stopColor="#D4B47A" />
+        <stop offset="100%" stopColor="#B08D57" />
       </linearGradient>
       <linearGradient id="band2" x1="100%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%"   stopColor="#D4A843" />
@@ -173,7 +174,7 @@ const WeddingBandsIllustration = () => (
       <ellipse cx="-35" cy="0" rx="95" ry="95" fill="none"
         stroke="url(#band1)" strokeWidth="22" />
       <ellipse cx="-35" cy="0" rx="95" ry="95" fill="none"
-        stroke="#8C9070" strokeWidth="1" opacity="0.4" />
+        stroke="#B08D57" strokeWidth="1" opacity="0.4" />
     </g>
 
     {/* Right band (gold) — tilted opposite */}
@@ -190,11 +191,11 @@ const WeddingBandsIllustration = () => (
       const a = (deg - 18) * Math.PI / 180;
       const x = (250 - 35) + r * Math.cos(a);
       const y = 250 + r * Math.sin(a);
-      return <circle key={i} cx={x} cy={y} r="3.5" fill="#F8F9F5" opacity="0.9" />;
+      return <circle key={i} cx={x} cy={y} r="3.5" fill="#FFFFFF" opacity="0.9" />;
     })}
 
     {/* "Forever" inscription between rings */}
-    <text x="250" y="258" textAnchor="middle" fill="#C2C5AA" fontSize="13"
+    <text x="250" y="258" textAnchor="middle" fill="#D4B47A" fontSize="13"
       fontFamily="Georgia, serif" fontStyle="italic" opacity="0.7">
       forever
     </text>
@@ -202,8 +203,8 @@ const WeddingBandsIllustration = () => (
     {/* Sparkles */}
     {[{x:160,y:160,d:0},{x:345,y:155,d:1.5},{x:180,y:345,d:0.7},{x:335,y:350,d:2.1}].map(({x,y,d},i) => (
       <g key={i} style={{ animation: `sparkle2 ${3.5+d}s ease-in-out ${d}s infinite`, transformOrigin:`${x}px ${y}px` }}>
-        <line x1={x} y1={y-6} x2={x} y2={y+6} stroke="#F8F9F5" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1={x-6} y1={y} x2={x+6} y2={y} stroke="#F8F9F5" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1={x} y1={y-6} x2={x} y2={y+6} stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1={x-6} y1={y} x2={x+6} y2={y} stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
       </g>
     ))}
   </svg>
@@ -213,18 +214,20 @@ const WeddingBandsIllustration = () => (
 const slides = [
   {
     id: 1,
-    bg: 'from-[#1a2015] via-[#272e1f] to-[#333D29]',
+    bg: 'from-[#1a2015] via-[#272e1f] to-[#0A0A0A]',
     tag: 'New Collection',
     title: 'Where Love\nBegins',
     subtitle: 'Discover our handcrafted engagement rings, each one a symbol of your unique love story.',
     cta:  { label: 'Shop Engagement Rings', href: '/category/engagement-rings' },
-    cta2: { label: 'Build Your Ring',       href: '/custom-ring' },
+    cta2: RING_BUILDER_ENABLED
+      ? { label: 'Build Your Ring', href: '/custom-ring' }
+      : { label: 'Search Diamonds', href: '/diamonds' },
     align: 'left',
     Illustration: RingIllustration,
   },
   {
     id: 2,
-    bg: 'from-[#111413] via-[#1a1f18] to-[#252a1f]',
+    bg: 'from-[#080808] via-[#0F0F0F] to-[#181818]',
     tag: 'Ethically Sourced',
     title: 'Eternal\nBeauty',
     subtitle: 'GIA & IGI certified diamonds set in platinum and 18ct gold. Crafted to last a lifetime.',
@@ -235,7 +238,7 @@ const slides = [
   },
   {
     id: 3,
-    bg: 'from-[#2a2418] via-[#332d1e] to-[#3d3523]',
+    bg: 'from-[#0E0B07] via-[#181410] to-[#221D15]',
     tag: 'Wedding Season',
     title: 'For Your\nSpecial Day',
     subtitle: 'Complete your bridal look with our stunning wedding bands and matching sets.',

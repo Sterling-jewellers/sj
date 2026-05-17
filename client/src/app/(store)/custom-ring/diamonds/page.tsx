@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -271,16 +271,34 @@ function DiamondIllustration({ shape, size = 200 }: { shape: string; size?: numb
 }
 
 // DiamondImage: uses Nivoda URL if available, else shows SVG illustration
+// unoptimized=true bypasses Next.js domain whitelist for external Nivoda CDN URLs
 function DiamondImage({ shape, imageUrl, fill: fillImg = false, className = '' }:
   { shape: string; imageUrl?: string | null; fill?: boolean; className?: string }) {
   if (imageUrl) {
     return fillImg
-      ? <Image src={imageUrl} alt={`${shape} diamond`} fill className={className} />
-      : <Image src={imageUrl} alt={`${shape} diamond`} width={200} height={200} className={className} />;
+      ? <Image src={imageUrl} alt={`${shape} diamond`} fill unoptimized className={className} />
+      : <Image src={imageUrl} alt={`${shape} diamond`} width={200} height={200} unoptimized className={className} />;
   }
   return (
     <div className={cn('w-full h-full flex items-center justify-center bg-[#f0f7ff]', className)}>
       <DiamondIllustration shape={shape} size={180} />
+    </div>
+  );
+}
+
+// DiamondThumbnail: compact 56×56 thumbnail for table rows
+function DiamondThumbnail({ shape, imageUrl }: { shape: string; imageUrl?: string | null }) {
+  if (imageUrl) {
+    return (
+      <div className="w-14 h-14 relative overflow-hidden bg-[#f0f7ff] flex-shrink-0">
+        <Image src={imageUrl} alt={`${shape} diamond`} fill unoptimized className="object-contain p-1" />
+      </div>
+    );
+  }
+  // SVG fallback — shape-appropriate faceted illustration
+  return (
+    <div className="w-14 h-14 bg-[#f0f7ff] flex items-center justify-center flex-shrink-0">
+      <DiamondIllustration shape={shape} size={48} />
     </div>
   );
 }
@@ -511,45 +529,69 @@ export default function DiamondBrowserPage() {
   const [caratMin,    setCaratMin]    = useState(0.25);
   const [caratMax,    setCaratMax]    = useState(5.0);
   const [priceMin,    setPriceMin]    = useState(0);
-  const [priceMax,    setPriceMax]    = useState(50000);
+  const [priceMax,    setPriceMax]    = useState(10_000_000); // high enough for Nivoda
   const [labs,        setLabs]        = useState<string[]>([]);
   const [sort,        setSort]        = useState('price-asc');
   const [viewMode,    setViewMode]    = useState<'table'|'grid'>('table');
   const [selected,    setSelected]    = useState<IDiamond | null>(chosenDiamond);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  // ── Data ──
-  const { data, isLoading } = useQuery({
-    queryKey: ['diamonds-browser'],
-    queryFn:  () => diamondsApi.getAll({ limit: 200 }),
-    staleTime: 5 * 60_000,
+  // ── Pagination + diamond type ──
+  const [page,        setPage]        = useState(1);
+  const [diamondType, setDiamondType] = useState<'all' | 'natural' | 'lab'>('all');
+
+  // Reset page whenever any filter changes
+  useEffect(() => { setPage(1); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shapes, cuts, colorMin, colorMax, clarityMin, clarityMax,
+     caratMin, caratMax, priceMin, priceMax, labs, sort, diamondType]);
+
+  // Scroll to top of the list when page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
+  const PER_PAGE = 60;
+
+  // ── Server-side data fetch — all filters sent as query params ──
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: [
+      'diamonds-browser', page, sort, shapes, cuts,
+      colorMin, colorMax, clarityMin, clarityMax,
+      caratMin, caratMax, priceMin, priceMax, labs, diamondType,
+    ],
+    queryFn: () => {
+      const activeColors    = COLORS.slice(colorMin, colorMax + 1);
+      const activeClarities = CLARITIES.slice(clarityMin, clarityMax + 1);
+
+      const params: Record<string, string | number> = {
+        page,
+        limit: PER_PAGE,
+        sort,
+        color:   activeColors.join(','),
+        clarity: activeClarities.join(','),
+      };
+      if (shapes.length)  params.shape   = shapes.join(',');
+      if (cuts.length)    params.cut     = cuts.join(',');
+      if (labs.length)    params.lab     = labs.join(',');
+      if (caratMin > 0.25)       params.minCarat = caratMin;
+      if (caratMax < 5)          params.maxCarat = caratMax;
+      if (priceMin > 0)          params.minPrice = priceMin;
+      if (priceMax < 10_000_000) params.maxPrice = priceMax;
+      if (diamondType === 'lab')     params.labgrown = 'true';
+      if (diamondType === 'natural') params.labgrown = 'false';
+      return diamondsApi.getAll(params);
+    },
+    staleTime:        2 * 60_000,
+    placeholderData:  (prev) => prev,   // keeps previous data visible while fetching next page
   });
-  const allDiamonds: IDiamond[] = useMemo(() => {
+
+  const diamonds: IDiamond[] = (() => {
     const raw = data?.data;
     return Array.isArray(raw) ? raw : (raw?.diamonds ?? []);
-  }, [data]);
-
-  // ── Filtered + sorted list ──
-  const filtered = useMemo(() => {
-    const activeColors    = COLORS.slice(colorMin, colorMax + 1);
-    const activeClarities = CLARITIES.slice(clarityMin, clarityMax + 1);
-    let list = allDiamonds.filter(d => {
-      if (shapes.length  && !shapes.includes(d.shape))                    return false;
-      if (cuts.length    && !cuts.includes(d.cut))                        return false;
-      if (labs.length    && !labs.includes(d.certificate?.lab))           return false;
-      if (!activeColors.includes(d.color))                                return false;
-      if (!activeClarities.includes(d.clarity))                           return false;
-      if (d.caratWeight < caratMin || d.caratWeight > caratMax)           return false;
-      if (d.price < priceMin || d.price > priceMax)                       return false;
-      return true;
-    });
-    if (sort === 'price-asc')   list.sort((a, b) => a.price - b.price);
-    if (sort === 'price-desc')  list.sort((a, b) => b.price - a.price);
-    if (sort === 'carat-asc')   list.sort((a, b) => a.caratWeight - b.caratWeight);
-    if (sort === 'carat-desc')  list.sort((a, b) => b.caratWeight - a.caratWeight);
-    return list;
-  }, [allDiamonds, shapes, cuts, colorMin, colorMax, clarityMin, clarityMax,
-      caratMin, caratMax, priceMin, priceMax, labs, sort]);
+  })();
+  const totalCount: number = data?.data?.total  ?? 0;
+  const totalPages: number = data?.data?.pages  ?? 1;
 
   const toggleShape = (s: string) => setShapes(prev =>
     prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -563,7 +605,9 @@ export default function DiamondBrowserPage() {
     setColorMin(0); setColorMax(COLORS.length - 1);
     setClarityMin(0); setClarityMax(CLARITIES.length - 1);
     setCaratMin(0.25); setCaratMax(5);
-    setPriceMin(0); setPriceMax(50000);
+    setPriceMin(0); setPriceMax(10_000_000);
+    setDiamondType('all');
+    setPage(1);
   }, []);
 
   const handleSelect = (d: IDiamond) => {
@@ -577,7 +621,8 @@ export default function DiamondBrowserPage() {
   const hasActiveFilters = shapes.length > 0 || cuts.length > 0 || labs.length > 0
     || colorMin > 0 || colorMax < COLORS.length - 1
     || clarityMin > 0 || clarityMax < CLARITIES.length - 1
-    || caratMin > 0.25 || caratMax < 5 || priceMin > 0 || priceMax < 50000;
+    || caratMin > 0.25 || caratMax < 5 || priceMin > 0 || priceMax < 10_000_000
+    || diamondType !== 'all';
 
   return (
     <div className="bg-white min-h-screen">
@@ -688,6 +733,25 @@ export default function DiamondBrowserPage() {
             ))}
           </div>
 
+          <div className="w-px h-5 bg-gray-300 hidden sm:block" />
+
+          {/* Diamond type: Natural / Lab Grown / All */}
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-sans text-gray-500">Type:</span>
+            {(['all', 'natural', 'lab'] as const).map(t => (
+              <button key={t} onClick={() => setDiamondType(t)}
+                className={cn('px-2 py-1 text-[11px] font-sans border transition-colors',
+                  diamondType === t
+                    ? t === 'natural' ? 'bg-[#003087] border-[#003087] text-white font-bold'
+                    : t === 'lab'     ? 'bg-[#006241] border-[#006241] text-white font-bold'
+                    : 'bg-charcoal border-charcoal text-white font-medium'
+                    : 'border-gray-300 text-gray-600 hover:border-charcoal'
+                )}>
+                {t === 'all' ? 'All' : t === 'natural' ? 'Natural (GIA)' : 'Lab Grown (IGI)'}
+              </button>
+            ))}
+          </div>
+
           <div className="ml-auto flex items-center gap-2">
             {hasActiveFilters && (
               <button onClick={resetFilters}
@@ -722,10 +786,10 @@ export default function DiamondBrowserPage() {
             lo={caratMin} hi={caratMax}
             onChange={(lo, hi) => { setCaratMin(lo); setCaratMax(hi); }}
             fmt={v => `${v.toFixed(2)}ct`} />
-          <RangeSlider label="Price" min={0} max={50000} step={250}
+          <RangeSlider label="Price" min={0} max={10_000_000} step={1000}
             lo={priceMin} hi={priceMax}
             onChange={(lo, hi) => { setPriceMin(lo); setPriceMax(hi); }}
-            fmt={v => `£${(v/1000).toFixed(0)}k`} />
+            fmt={v => v >= 1_000_000 ? `£${(v/1_000_000).toFixed(1)}M` : `£${(v/1000).toFixed(0)}k`} />
         </div>
       </div>
 
@@ -734,7 +798,13 @@ export default function DiamondBrowserPage() {
         {/* Result count */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-[12px] font-sans text-gray-500">
-            <span className="font-semibold text-charcoal">{filtered.length}</span> diamonds
+            {isFetching && !isLoading && (
+              <span className="inline-block w-2 h-2 mr-1.5 rounded-full bg-charcoal/40 animate-pulse align-middle" />
+            )}
+            <span className="font-semibold text-charcoal">{totalCount.toLocaleString()}</span> diamonds
+            {diamonds.length > 0 && totalPages > 1 && (
+              <span className="ml-1 text-gray-400">· page {page} of {totalPages}</span>
+            )}
             {setting && <span className="ml-2 text-gray-400">· Adding to your {setting.name}</span>}
           </p>
           {selected && (
@@ -754,7 +824,7 @@ export default function DiamondBrowserPage() {
                   <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
                 ))}
               </div>
-            ) : filtered.length === 0 ? (
+            ) : diamonds.length === 0 ? (
               <div className="py-24 text-center">
                 <p className="font-sans text-sm text-gray-400">No diamonds match your filters.</p>
                 <button onClick={resetFilters} className="mt-3 text-xs font-sans text-charcoal underline">
@@ -766,8 +836,8 @@ export default function DiamondBrowserPage() {
               <div className="border border-gray-200 overflow-hidden">
                 {/* Table header */}
                 <div className="grid text-[10px] font-sans font-semibold uppercase tracking-wider text-gray-400 bg-gray-50 border-b border-gray-200 px-4 py-2"
-                  style={{ gridTemplateColumns: '36px 1fr 90px 52px 52px 52px 60px 80px 100px' }}>
-                  <span />
+                  style={{ gridTemplateColumns: '68px 1fr 90px 52px 52px 52px 60px 80px 120px' }}>
+                  <span>Photo</span>
                   <span>Shape</span>
                   <span>Carat</span>
                   <span>Cut</span>
@@ -779,7 +849,7 @@ export default function DiamondBrowserPage() {
                 </div>
 
                 <div className="divide-y divide-gray-100">
-                  {filtered.map(d => {
+                  {diamonds.map(d => {
                     const isChosen = selected?._id === d._id;
                     const has360   = !!d.loupe360;
                     return (
@@ -787,16 +857,16 @@ export default function DiamondBrowserPage() {
                         key={d._id}
                         onClick={() => { setSelected(d); setPreviewOpen(true); }}
                         className={cn(
-                          'grid items-center px-4 py-3 cursor-pointer transition-colors text-sm',
+                          'grid items-center px-4 py-2 cursor-pointer transition-colors text-sm',
                           'hover:bg-gray-50',
                           isChosen ? 'bg-charcoal/[0.04] border-l-2 border-l-charcoal' : ''
                         )}
-                        style={{ gridTemplateColumns: '36px 1fr 90px 52px 52px 52px 60px 80px 100px' }}
+                        style={{ gridTemplateColumns: '68px 1fr 90px 52px 52px 52px 60px 80px 120px' }}
                       >
-                        {/* Shape icon */}
-                        <span className="text-gray-500">
-                          <ShapeSVG shape={d.shape} size={22} />
-                        </span>
+                        {/* Diamond photo thumbnail — real Nivoda photo or SVG illustration */}
+                        <div className="flex items-center">
+                          <DiamondThumbnail shape={d.shape} imageUrl={d.imageUrl} />
+                        </div>
 
                         {/* Shape name */}
                         <span className="font-sans text-[12px] text-charcoal font-medium">
@@ -844,18 +914,29 @@ export default function DiamondBrowserPage() {
                           {formatPrice(d.price)}
                         </span>
 
-                        {/* Select button */}
-                        <button
-                          onClick={e => { e.stopPropagation(); handleSelect(d); }}
-                          className={cn(
-                            'ml-2 px-3 py-1.5 text-[11px] font-sans font-medium tracking-wider border transition-colors',
-                            isChosen
-                              ? 'bg-charcoal text-white border-charcoal'
-                              : 'border-gray-300 text-charcoal hover:bg-charcoal hover:text-white hover:border-charcoal'
-                          )}
-                        >
-                          {isChosen ? <Check size={12} className="mx-auto" /> : 'Select'}
-                        </button>
+                        {/* Select + detail buttons */}
+                        <div className="ml-2 flex items-center gap-1">
+                          <button
+                            onClick={e => { e.stopPropagation(); handleSelect(d); }}
+                            className={cn(
+                              'px-3 py-1.5 text-[11px] font-sans font-medium tracking-wider border transition-colors',
+                              isChosen
+                                ? 'bg-charcoal text-white border-charcoal'
+                                : 'border-gray-300 text-charcoal hover:bg-charcoal hover:text-white hover:border-charcoal'
+                            )}
+                          >
+                            {isChosen ? <Check size={12} className="mx-auto" /> : 'Select'}
+                          </button>
+                          <Link
+                            href={`/diamonds/${d._id}`}
+                            target="_blank"
+                            onClick={e => e.stopPropagation()}
+                            className="p-1.5 border border-gray-200 text-gray-400 hover:text-charcoal hover:border-charcoal transition-colors"
+                            title="View full details"
+                          >
+                            <ExternalLink size={11} />
+                          </Link>
+                        </div>
                       </div>
                     );
                   })}
@@ -864,7 +945,7 @@ export default function DiamondBrowserPage() {
             ) : (
               /* ── GRID VIEW ── */
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filtered.map(d => {
+                {diamonds.map(d => {
                   const isChosen = selected?._id === d._id;
                   return (
                     <div
@@ -910,6 +991,57 @@ export default function DiamondBrowserPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* ── Pagination controls ── */}
+            {!isLoading && totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-1 flex-wrap">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 text-[12px] font-sans border border-gray-300 text-charcoal hover:border-charcoal disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Prev
+                </button>
+
+                {/* Page number buttons — show a window around current page */}
+                {(() => {
+                  const pages: (number | '…')[] = [];
+                  for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= page - 2 && i <= page + 2)) {
+                      pages.push(i);
+                    } else if (pages[pages.length - 1] !== '…') {
+                      pages.push('…');
+                    }
+                  }
+                  return pages.map((pg, idx) =>
+                    pg === '…' ? (
+                      <span key={`el-${idx}`} className="px-2 text-gray-400 text-[12px] font-sans select-none">…</span>
+                    ) : (
+                      <button
+                        key={pg}
+                        onClick={() => setPage(pg as number)}
+                        className={cn(
+                          'w-8 h-8 text-[12px] font-sans border transition-colors',
+                          page === pg
+                            ? 'bg-charcoal border-charcoal text-white font-semibold'
+                            : 'border-gray-300 text-charcoal hover:border-charcoal'
+                        )}
+                      >
+                        {pg}
+                      </button>
+                    )
+                  );
+                })()}
+
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1.5 text-[12px] font-sans border border-gray-300 text-charcoal hover:border-charcoal disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next →
+                </button>
               </div>
             )}
           </div>

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo, lazy, Suspense, useEffect } from 'react';
+import { useState, useMemo, lazy, Suspense, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
   Star, Truck, RefreshCw, Shield, ChevronLeft, ChevronRight,
-  Award, TrendingDown, Heart, ShoppingBag, ChevronDown, Box,
+  Award, TrendingDown, Heart, ShoppingBag, ChevronDown, Box, Gem,
 } from 'lucide-react';
 import { productsApi, reviewsApi, goldPriceApi } from '@/lib/api';
 import { IProduct, IReview, IDiamond } from '@/types';
@@ -21,20 +21,54 @@ import { cn } from '@/lib/utils';
 import { trackEvent, incrementVisitCount } from '@/lib/personalization';
 
 // Lazy-load heavy 3D viewer so it never blocks page render
-const ModelViewer = lazy(() => import('@/components/ui/ModelViewer'));
+const Ring3DViewer = lazy(() => import('@/components/ring-builder/Ring3DViewer'));
 
 // ─── JSON-LD ──────────────────────────────────────────────────────────────────
 function ProductJsonLd({ product, price }: { product: IProduct; price: number }) {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk';
+  const productUrl = `${siteUrl}/products/${product.slug}`;
+  const categoryUrl = product.category?.slug ? `${siteUrl}/category/${product.category.slug}` : undefined;
+
+  const productSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name:        product.name,
+    description: product.metaDescription || product.shortDescription,
+    image:       product.images,
+    url:         productUrl,
+    brand:       { '@type': 'Brand', name: 'Sterling Jewellers' },
+    ...(product.gemstone   && { material: product.gemstone }),
+    ...(product.style      && { style:    product.style }),
+    offers: {
+      '@type':          'Offer',
+      price:            price.toFixed(2),
+      priceCurrency:    'GBP',
+      availability:     'https://schema.org/InStock',
+      url:              productUrl,
+      seller:           { '@type': 'Organization', name: 'Sterling Jewellers' },
+      shippingDetails:  { '@type': 'OfferShippingDetails', shippingRate: { '@type': 'MonetaryAmount', value: '0', currency: 'GBP' }, deliveryTime: { '@type': 'ShippingDeliveryTime', businessDays: { '@type': 'QuantitativeValue', minValue: 2, maxValue: product.deliveryDays || 7 } } },
+      hasMerchantReturnPolicy: { '@type': 'MerchantReturnPolicy', returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: 30 },
+    },
+    ...(product.reviewCount > 0 && {
+      aggregateRating: { '@type': 'AggregateRating', ratingValue: product.averageRating, reviewCount: product.reviewCount, bestRating: 5, worstRating: 1 },
+    }),
+  };
+
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type':    'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home',           item: siteUrl },
+      ...(categoryUrl ? [{ '@type': 'ListItem', position: 2, name: product.category?.name, item: categoryUrl }] : []),
+      { '@type': 'ListItem', position: categoryUrl ? 3 : 2, name: product.name, item: productUrl },
+    ],
+  };
+
   return (
-    <script type="application/ld+json" dangerouslySetInnerHTML={{
-      __html: JSON.stringify({
-        '@context': 'https://schema.org', '@type': 'Product',
-        name: product.name, description: product.shortDescription,
-        image: product.images, brand: { '@type': 'Brand', name: 'Sterling Jewellers' },
-        offers: { '@type': 'Offer', price: price.toFixed(2), priceCurrency: 'GBP', availability: 'https://schema.org/InStock' },
-        ...(product.reviewCount > 0 && { aggregateRating: { '@type': 'AggregateRating', ratingValue: product.averageRating, reviewCount: product.reviewCount, bestRating: 5 } }),
-      })
-    }} />
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+    </>
   );
 }
 
@@ -119,13 +153,118 @@ const BAND_MODS: Record<string, number> = {
 };
 const SHANK_MODS: Record<string, number> = { slim: -35, standard: 0, large: 55 };
 
-// ─── Ring category check ──────────────────────────────────────────────────────
-const DIAMOND_CATS = ['engagement-rings', 'rings', 'solitaire', 'engagement rings'];
-const isRingProduct = (p: IProduct) => {
-  const slug = (p.category as unknown as { slug?: string })?.slug?.toLowerCase() || '';
-  const name = (p.category as unknown as { name?: string })?.name?.toLowerCase() || '';
-  return DIAMOND_CATS.some(k => slug.includes(k) || name.includes(k));
-};
+// ─── Diamond shape icons for ring builder preview ────────────────────────────
+const PREVIEW_SHAPES = [
+  { id: 'round',    label: 'Round' },
+  { id: 'oval',     label: 'Oval' },
+  { id: 'princess', label: 'Princess' },
+  { id: 'cushion',  label: 'Cushion' },
+  { id: 'emerald',  label: 'Emerald' },
+  { id: 'pear',     label: 'Pear' },
+  { id: 'radiant',  label: 'Radiant' },
+  { id: 'heart',    label: 'Heart' },
+];
+
+function DiamondShapeIcon({ shape, active, size = 24 }: { shape: string; active: boolean; size?: number }) {
+  const c  = active ? '#1a1a1a' : '#9ca3af';
+  const sw = 1.1;
+  const s  = shape.toLowerCase();
+  const ol = { fill: 'none', stroke: c, strokeWidth: sw,        strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
+  const tb = { fill: 'none', stroke: c, strokeWidth: sw * 0.55, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
+  const sk = { stroke: c, strokeWidth: sw * 0.35, opacity: 0.5, strokeLinecap: 'round' as const };
+  const P  = (deg: number, r: number, cx = 24, cy = 24): [number, number] => [
+    cx + r * Math.cos((deg - 90) * Math.PI / 180),
+    cy + r * Math.sin((deg - 90) * Math.PI / 180),
+  ];
+
+  if (s === 'round') {
+    const G = Array.from({length:8}, (_,i) => P(i*45,20));
+    const T = Array.from({length:8}, (_,i) => P(i*45+22.5,11));
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <circle cx="24" cy="24" r="20" {...ol} />
+      <polygon points={T.map(p=>p.join(',')).join(' ')} {...tb} />
+      {G.map(([gx,gy],i) => <line key={i} x1={gx} y1={gy} x2={T[i][0]} y2={T[i][1]} {...sk} />)}
+    </svg>;
+  }
+  if (s === 'oval') {
+    const G = Array.from({length:8}, (_,i) => { const a=(i*45-90)*Math.PI/180; return [24+14*Math.cos(a),24+20*Math.sin(a)] as [number,number]; });
+    const T = Array.from({length:8}, (_,i) => { const a=((i*45+22.5)-90)*Math.PI/180; return [24+7.5*Math.cos(a),24+11*Math.sin(a)] as [number,number]; });
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <ellipse cx="24" cy="24" rx="14" ry="20" {...ol} />
+      <polygon points={T.map(p=>p.join(',')).join(' ')} {...tb} />
+      {G.map(([gx,gy],i) => <line key={i} x1={gx} y1={gy} x2={T[i][0]} y2={T[i][1]} {...sk} />)}
+    </svg>;
+  }
+  if (s === 'princess') {
+    const G: [number,number][] = [[4,4],[44,4],[44,44],[4,44]];
+    const M: [number,number][] = [[24,4],[44,24],[24,44],[4,24]];
+    const Tc: [number,number][] = [[13,13],[35,13],[35,35],[13,35]];
+    const Tm: [number,number][] = [[24,13],[35,24],[24,35],[13,24]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <rect x="4" y="4" width="40" height="40" {...ol} />
+      <rect x="13" y="13" width="22" height="22" {...tb} />
+      {G.map(([x,y],i)=><line key={`c${i}`} x1={x} y1={y} x2={Tc[i][0]} y2={Tc[i][1]} {...sk} />)}
+      {M.map(([x,y],i)=><line key={`m${i}`} x1={x} y1={y} x2={Tm[i][0]} y2={Tm[i][1]} {...sk} />)}
+    </svg>;
+  }
+  if (s === 'cushion') {
+    const G: [number,number][] = [[4,4],[44,4],[44,44],[4,44]];
+    const M: [number,number][] = [[24,4],[44,24],[24,44],[4,24]];
+    const Tc: [number,number][] = [[13,13],[35,13],[35,35],[13,35]];
+    const Tm: [number,number][] = [[24,13],[35,24],[24,35],[13,24]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <rect x="4" y="4" width="40" height="40" rx="9" {...ol} />
+      <rect x="13" y="13" width="22" height="22" rx="4" {...tb} />
+      {G.map(([x,y],i)=><line key={`c${i}`} x1={x} y1={y} x2={Tc[i][0]} y2={Tc[i][1]} {...sk} />)}
+      {M.map(([x,y],i)=><line key={`m${i}`} x1={x} y1={y} x2={Tm[i][0]} y2={Tm[i][1]} {...sk} />)}
+    </svg>;
+  }
+  if (s === 'emerald') {
+    const o: [number,number][] = [[16,4],[32,4],[39,11],[39,37],[32,44],[16,44],[9,37],[9,11]];
+    const m: [number,number][] = [[17,9],[31,9],[36,14],[36,34],[31,39],[17,39],[12,34],[12,14]];
+    const inn: [number,number][] = [[18,15],[30,15],[33,18],[33,30],[30,33],[18,33],[15,30],[15,18]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <polygon points={o.map(p=>p.join(',')).join(' ')} {...ol} />
+      <polygon points={m.map(p=>p.join(',')).join(' ')} {...tb} />
+      <polygon points={inn.map(p=>p.join(',')).join(' ')} fill="none" stroke={c} strokeWidth={sw*0.38} opacity={0.65} />
+    </svg>;
+  }
+  if (s === 'radiant') {
+    const o: [number,number][] = [[13,4],[35,4],[44,13],[44,35],[35,44],[13,44],[4,35],[4,13]];
+    const t: [number,number][] = [[16,11],[32,11],[37,16],[37,32],[32,37],[16,37],[11,32],[11,16]];
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <polygon points={o.map(p=>p.join(',')).join(' ')} {...ol} />
+      <polygon points={t.map(p=>p.join(',')).join(' ')} {...tb} />
+      {o.map(([ox,oy],i)=><line key={i} x1={ox} y1={oy} x2={t[i][0]} y2={t[i][1]} {...sk} />)}
+    </svg>;
+  }
+  if (s === 'pear') {
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <path d="M24,44 C10,38 4,28 4,21 C4,12 13,4 24,4 C35,4 44,12 44,21 C44,28 38,38 24,44Z" {...ol} />
+      <path d="M24,38 C13,33 10,25 10,21 C10,14 16,9 24,9 C32,9 38,14 38,21 C38,25 35,33 24,38Z" {...tb} />
+      <line x1="24" y1="4"  x2="24" y2="9"  {...sk} />
+      <line x1="44" y1="21" x2="38" y2="21" {...sk} />
+      <line x1="4"  y1="21" x2="10" y2="21" {...sk} />
+      <line x1="24" y1="44" x2="24" y2="38" {...sk} />
+      <line x1="9"  y1="9"  x2="15" y2="14" {...sk} />
+      <line x1="39" y1="9"  x2="33" y2="14" {...sk} />
+    </svg>;
+  }
+  if (s === 'heart') {
+    return <svg viewBox="0 0 48 48" width={size} height={size}>
+      <path d="M24,42 C5,30 2,19 2,15 C2,8 8,4 14,4 C18,4 22,6 24,10 C26,6 30,4 34,4 C40,4 46,8 46,15 C46,19 43,30 24,42Z" {...ol} />
+      <path d="M24,35 C9,25 7,18 7,15 C7,11 10,8 14,8 C17,8 21,10 24,14 C27,10 31,8 34,8 C38,8 41,11 41,15 C41,18 39,25 24,35Z" {...tb} />
+      <line x1="24" y1="42" x2="24" y2="35" {...sk} />
+      <line x1="2"  y1="15" x2="7"  y2="15" {...sk} />
+      <line x1="46" y1="15" x2="41" y2="15" {...sk} />
+      <line x1="4"  y1="7"  x2="9"  y2="11" {...sk} />
+      <line x1="44" y1="7"  x2="39" y2="11" {...sk} />
+    </svg>;
+  }
+  return <svg viewBox="0 0 48 48" width={size} height={size}>
+    <circle cx="24" cy="24" r="20" {...ol} />
+  </svg>;
+}
 
 // ─── Live pricing formula ─────────────────────────────────────────────────────
 type ProductExt = IProduct & { weightBySize?: { size: string; weightGrams: number }[]; bandStyle?: string; shankWidth?: string; competitorPrice?: number };
@@ -191,6 +330,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const related: IProduct[] = relatedData?.data || [];
 
   const [activeImage, setActiveImage] = useState(0);
+  const [previewShape, setPreviewShape] = useState('round');
+  const [shapeDropOpen, setShapeDropOpen] = useState(false);
+  const shapeDropRef = useRef<HTMLDivElement>(null);
   const [selectedMetalKey, setSelectedMetalKey] = useState(''); // "type__karat"
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedBand, setSelectedBand] = useState('');
@@ -212,6 +354,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       price: product.basePrice,
     });
   }, [product?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (shapeDropRef.current && !shapeDropRef.current.contains(e.target as Node)) {
+        setShapeDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
   const [selectedShank, setSelectedShank] = useState('');
   const [selectedSetting, setSelectedSetting] = useState('');
   const [engraving, setEngraving] = useState('');
@@ -257,7 +409,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const finalPrice = pricing.total;
   const competitorPrice = product.competitorPrice;
   const saving = competitorPrice ? competitorPrice - finalPrice : null;
-  const isDiamond = isRingProduct(product);
+  const isDiamond = product.isRingBuilder === true;
 
   const metalKey = (m: { type: string; karat?: string }) => `${m.type}__${m.karat || ''}`;
 
@@ -282,44 +434,25 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       </div>
 
       <div className="page-container py-8">
-        <div className="grid lg:grid-cols-2 gap-12">
+        {isDiamond ? (
 
-          {/* ── LEFT: Image Gallery ── */}
-          <div className="flex gap-4">
-            {/* Thumbnails */}
-            <div className="flex flex-col gap-2 w-20 flex-shrink-0">
-              {displayImages.map((img, i) => (
-                <button key={i} onClick={() => setActiveImage(i)}
-                  className={cn('relative w-20 h-20 border-2 overflow-hidden flex-shrink-0 transition-all',
-                    i === activeImage ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300')}>
-                  <Image src={img} alt="" fill className="object-cover"
-                    style={{ filter: metalFilter, transition: 'filter 0.4s ease' }} />
-                </button>
-              ))}
-              {/* 3D view thumbnail — only shown when a model exists */}
-              {product.model3dUrl && (
-                <button onClick={() => setActiveImage(-1)}
-                  title="View 3D model"
-                  className={cn('relative w-20 h-20 border-2 overflow-hidden flex-shrink-0 transition-all flex items-center justify-center bg-gray-50',
-                    activeImage === -1 ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300')}>
-                  {product.model3dPreview
-                    ? <Image src={product.model3dPreview} alt="3D" fill className="object-cover" />
-                    : <Box size={24} className="text-gray-400" />}
-                  <span className="absolute bottom-0.5 left-0 right-0 text-center text-[9px] font-sans font-semibold text-charcoal bg-white/80">3D</span>
-                </button>
-              )}
-            </div>
+          /* ══════════════ RING BUILDER — Blue Nile layout ══════════════ */
+          <div className="grid lg:grid-cols-[1fr_460px] gap-10">
 
-            {/* Main image / 3D viewer */}
-            <div className="relative flex-1 aspect-square bg-gray-50 overflow-hidden">
-              {activeImage === -1 && product.model3dUrl ? (
-                /* ── 3D Model Viewer ── */
-                <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-sans">Loading 3D…</div>}>
-                  <ModelViewer src={product.model3dUrl} poster={product.model3dPreview} alt={product.name} className="w-full h-full" />
-                </Suspense>
-              ) : (
-                /* ── Regular photo with metal colour filter ── */
-                <>
+            {/* LEFT: large main image + 4-up thumbnail strip */}
+            <div>
+              {/* Main image with overlays */}
+              <div className="relative aspect-square bg-gray-50 overflow-hidden mb-2">
+                {activeImage === -1 ? (
+                  <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-sans">Loading 3D…</div>}>
+                    <Ring3DViewer
+                      modelUrl={product.model3dUrl}
+                      metal={activeMetal?.type || 'yellow-gold'}
+                      diamondShape={previewShape}
+                      className="w-full h-full"
+                    />
+                  </Suspense>
+                ) : (
                   <Image
                     src={displayImages[Math.max(0, activeImage)] || displayImages[0] || ''}
                     alt={product.name}
@@ -327,254 +460,487 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     className="object-cover"
                     style={{ filter: metalFilter, transition: 'filter 0.4s ease' }}
                   />
-                  {/* Metal filter label */}
-                  {metalFilter !== 'none' && (
-                    <div className="absolute top-3 right-3 bg-white/85 backdrop-blur-sm border border-gray-100 rounded px-2 py-1 text-[10px] font-sans text-gray-500">
-                      Colour preview
+                )}
+
+                {/* "Shown in 1 ct." — bottom-left */}
+                {activeImage !== -1 && (
+                  <div className="absolute bottom-3 left-3 bg-white/92 backdrop-blur-sm border border-gray-100 px-3 py-1.5 text-[11px] font-sans text-charcoal shadow-sm">
+                    Shown in 1 ct.
+                  </div>
+                )}
+
+                {/* Diamond shape dropdown pill — bottom-right */}
+                <div className="absolute bottom-3 right-3 z-10" ref={shapeDropRef}>
+                  <button
+                    onClick={() => setShapeDropOpen(v => !v)}
+                    className="flex items-center gap-1.5 bg-white/92 backdrop-blur-sm border border-gray-200 px-3 py-1.5 text-[11px] font-sans text-charcoal hover:bg-white transition-colors shadow-sm"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                      <DiamondShapeIcon shape={previewShape} active />
+                    </span>
+                    <span className="font-medium">{PREVIEW_SHAPES.find(s => s.id === previewShape)?.label ?? 'Round'}</span>
+                    <ChevronDown size={11} className={cn('transition-transform ml-0.5', shapeDropOpen && 'rotate-180')} />
+                  </button>
+                  {shapeDropOpen && (
+                    <div className="absolute bottom-full right-0 mb-1 bg-white border border-gray-200 shadow-xl py-1 w-36 z-20">
+                      {PREVIEW_SHAPES.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => { setPreviewShape(s.id); setActiveImage(-1); setShapeDropOpen(false); }}
+                          className={cn(
+                            'w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-sans hover:bg-gray-50 transition-colors',
+                            previewShape === s.id ? 'text-charcoal font-semibold' : 'text-gray-600',
+                          )}
+                        >
+                          <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                            <DiamondShapeIcon shape={s.id} active={previewShape === s.id} />
+                          </span>
+                          {s.label}
+                        </button>
+                      ))}
                     </div>
                   )}
-                </>
-              )}
-              {displayImages.length > 1 && activeImage !== -1 && (
-                <>
-                  <button onClick={() => setActiveImage(p => (p - 1 + displayImages.length) % displayImages.length)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
-                    <ChevronLeft size={16} />
-                  </button>
-                  <button onClick={() => setActiveImage(p => (p + 1) % displayImages.length)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
-                    <ChevronRight size={16} />
-                  </button>
-                </>
-              )}
-              {product.isNewArrival && activeImage !== -1 && (
-                <span className="absolute top-3 left-3 bg-charcoal text-white text-[9px] px-2 py-1 font-sans tracking-widest uppercase">New</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── RIGHT: Product Info ── */}
-          <div>
-            <p className="text-xs text-gray-400 font-sans tracking-widest uppercase mb-1">{(product.category as unknown as { name?: string })?.name}</p>
-            <h1 className="font-serif text-2xl lg:text-3xl font-light text-charcoal mb-2">{product.name}</h1>
-
-            {/* Rating */}
-            {product.reviewCount > 0 && (
-              <button onClick={() => setActiveTab('reviews')} className="flex items-center gap-2 mb-3">
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={13} className={i < Math.round(product.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />)}
                 </div>
-                <span className="text-xs text-gray-500 font-sans">{product.averageRating} ({product.reviewCount} reviews)</span>
-              </button>
-            )}
 
-            {/* ── Price Section ── */}
-            <div className="bg-gray-50 border border-gray-100 p-4 mb-5">
-
-              {/* Price row: High Street / Was / Our Price */}
-              <div className="flex items-end gap-5 flex-wrap">
-                {competitorPrice && (
-                  <div>
-                    <p className="text-[10px] font-sans text-gray-400 uppercase tracking-wider mb-0.5">High Street</p>
-                    <p className="font-sans text-base text-gray-400 line-through">{formatPrice(competitorPrice)}</p>
-                  </div>
-                )}
-                {(product.salePrice && !pricing.isLive) && (
-                  <div>
-                    <p className="text-[10px] font-sans text-gray-400 uppercase tracking-wider mb-0.5">Was</p>
-                    <p className="font-sans text-base text-gray-400 line-through">{formatPrice(product.basePrice + (activeMetal?.priceModifier || 0))}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-[10px] font-sans text-gray-400 uppercase tracking-wider mb-0.5">Our Price</p>
-                  <p className="font-serif text-3xl font-light text-charcoal">{formatPrice(finalPrice)}</p>
-                </div>
-              </div>
-
-              {/* Saving badge */}
-              {saving && saving > 0 && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
-                  <TrendingDown size={14} className="text-green-600" />
-                  <span className="text-sm font-sans text-green-700">You save <strong>{formatPrice(saving)}</strong> vs high street</span>
-                </div>
-              )}
-
-              {product.certification && (
-                <div className={`flex items-center gap-1.5 ${saving && saving > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-gray-200'}`}>
-                  <Award size={13} className="text-gold-500" />
-                  <span className="text-xs font-sans text-gold-600">{product.certification} Certified</span>
-                </div>
-              )}
-
-              {/* Live social proof — viewing count + low-stock urgency */}
-              <SocialProof
-                productId={product._id}
-                variants={product.variants}
-                className="mt-3 pt-3 border-t border-gray-100"
-              />
-            </div>
-
-            {/* ── Metal Selector (Abelini style: colour swatches + karat) ── */}
-            {product.metalOptions.length > 0 && (
-              <div className="mb-5">
-                <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal mb-3">
-                  Metal: <span className="normal-case font-normal text-gray-600">
-                    {activeMetal?.karat ? `${activeMetal.karat} ` : ''}{METAL_LABELS[activeMetal?.type || ''] || activeMetal?.type}
-                  </span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {product.metalOptions.map((metal) => {
-                    const key = metalKey(metal);
-                    const active = (selectedMetalKey === key) || (!selectedMetalKey && metal.isDefault);
-                    return (
-                      <button key={key} onClick={() => setSelectedMetalKey(key)}
-                        title={`${metal.karat || ''} ${METAL_LABELS[metal.type] || metal.type}`.trim()}
-                        className={cn('flex flex-col items-center gap-1.5 p-2 border-2 rounded transition-all min-w-[56px]',
-                          active ? 'border-charcoal bg-gray-50' : 'border-gray-100 hover:border-gray-300')}>
-                        <div className="w-8 h-8 rounded-full border border-gray-200 shadow-sm"
-                          style={{ background: METAL_COLOURS[metal.type] || '#ccc' }} />
-                        <span className="text-[10px] font-sans font-medium text-gray-600 leading-tight text-center">
-                          {metal.karat || (metal.type === 'platinum' ? 'plt' : metal.type.split('-')[0])}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ── Setting Style ── */}
-            {product.settingType && (
-              <div className="mb-5">
-                <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal mb-3">Setting Style</p>
-                <div className="flex flex-wrap gap-3">
-                  {[product.settingType, ...(product.settingType !== 'plain' ? ['plain'] : [])].map((s) => {
-                    const active = (selectedSetting || product.settingType) === s;
-                    return (
-                      <button key={s} onClick={() => setSelectedSetting(s)}
-                        className={cn('flex flex-col items-center gap-2 p-3 border-2 rounded min-w-[72px] transition-all',
-                          active ? 'border-charcoal text-charcoal' : 'border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600')}>
-                        {SETTING_ICONS[s] || SETTING_ICONS['plain']}
-                        <span className="text-[10px] font-sans font-medium">{SETTING_LABELS[s] || s}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ── Band Style ── */}
-            {product.bandStyle && (
-              <div className="mb-5">
-                <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal mb-3">Band Style</p>
-                <div className="flex flex-wrap gap-3">
-                  {['plain', 'pave', 'half-pave', 'channel', 'twisted'].map((b) => {
-                    const active = (selectedBand || product.bandStyle) === b;
-                    return (
-                      <button key={b} onClick={() => setSelectedBand(b)}
-                        className={cn('flex flex-col items-center gap-2 p-3 border-2 rounded min-w-[72px] transition-all',
-                          active ? 'border-charcoal text-charcoal' : 'border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600')}>
-                        {BAND_ICONS[b]}
-                        <span className="text-[10px] font-sans font-medium">{BAND_LABELS[b]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ── Shank Width ── */}
-            {product.shankWidth && (
-              <div className="mb-5">
-                <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal mb-3">
-                  Shank Width <Link href="/size-guide" className="normal-case font-normal text-gold-600 hover:underline text-xs ml-1">How to choose?</Link>
-                </p>
-                <div className="flex gap-3">
-                  {['slim', 'standard', 'large'].map((w) => {
-                    const active = (selectedShank || product.shankWidth) === w;
-                    return (
-                      <button key={w} onClick={() => setSelectedShank(w)}
-                        className={cn('flex flex-col items-center gap-2 p-3 border-2 rounded min-w-[72px] transition-all',
-                          active ? 'border-charcoal text-charcoal' : 'border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600')}>
-                        {SHANK_ICONS[w]}
-                        <span className="text-[10px] font-sans font-medium">{SHANK_LABELS[w]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ── Ring Size ── */}
-            {product.variants.length > 0 && (
-              <div className="mb-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal">Ring Size</p>
-                  <Link href="/size-guide" className="text-xs font-sans text-gold-600 hover:underline flex items-center gap-1">Ring Size Guide</Link>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {product.variants.map((v) => (
-                    <button key={v.size} disabled={v.stock === 0} onClick={() => setSelectedSize(v.size)}
-                      className={cn('w-11 h-11 text-sm font-sans border-2 transition-all rounded',
-                        selectedSize === v.size ? 'border-charcoal bg-charcoal text-white font-medium'
-                        : v.stock === 0 ? 'border-gray-100 text-gray-300 cursor-not-allowed line-through'
-                        : 'border-gray-200 text-gray-600 hover:border-charcoal')}>
-                      {v.size}
+                {/* Prev/next arrows */}
+                {displayImages.length > 1 && activeImage !== -1 && (
+                  <>
+                    <button onClick={() => setActiveImage(p => (p - 1 + displayImages.length) % displayImages.length)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
+                      <ChevronLeft size={16} />
                     </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                    <button onClick={() => setActiveImage(p => (p + 1) % displayImages.length)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
+                      <ChevronRight size={16} />
+                    </button>
+                  </>
+                )}
 
-            {/* ── Diamond Picker ── */}
-            {isDiamond && <DiamondPicker selectedDiamond={selectedDiamond} onSelect={setSelectedDiamond} />}
-
-            {/* ── Engraving ── */}
-            {product.isEngravable && (
-              <div className="mb-5">
-                <button onClick={() => setEngravingOpen(!engravingOpen)}
-                  className="flex items-center gap-2 text-xs font-sans font-semibold tracking-widest uppercase text-charcoal hover:text-gold-600 transition-colors">
-                  Add Engraving (Free) <ChevronDown size={14} className={cn('transition-transform', engravingOpen && 'rotate-180')} />
-                </button>
-                {engravingOpen && (
-                  <div className="mt-3">
-                    <input type="text" maxLength={20} placeholder="Your message (max 20 chars)"
-                      value={engraving} onChange={e => setEngraving(e.target.value)} className="input-field" />
-                    <p className="text-xs text-gray-400 mt-1">{engraving.length}/20</p>
-                  </div>
+                {product.isNewArrival && activeImage !== -1 && (
+                  <span className="absolute top-3 left-3 bg-charcoal text-white text-[9px] px-2 py-1 font-sans tracking-widest uppercase">New</span>
                 )}
               </div>
-            )}
 
-            {/* ── CTA Buttons ── */}
-            <div className="flex gap-3 mb-5">
-              <button onClick={handleAddToCart} className="flex-1 bg-charcoal hover:bg-gold-600 text-white py-4 font-sans font-medium text-sm tracking-widest uppercase transition-colors flex items-center justify-center gap-2">
-                <ShoppingBag size={16} />
-                {selectedDiamond ? `Add Ring + Diamond — ${formatPrice(finalPrice)}` : 'Customise & Buy'}
-              </button>
-              <button
-                onClick={() => { toggleItem(product); toast(isWishlisted(product._id) ? 'Removed from wishlist' : 'Saved to wishlist', { icon: '❤️' }); }}
-                className={cn('w-14 border-2 flex items-center justify-center transition-colors',
-                  isWishlisted(product._id) ? 'border-red-300 text-red-400 bg-red-50' : 'border-gray-200 text-gray-500 hover:border-charcoal hover:text-charcoal')}>
-                <Heart size={18} fill={isWishlisted(product._id) ? 'currentColor' : 'none'} />
-              </button>
+              {/* Thumbnail strip: 3D tile + up to 3 photos */}
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  onClick={() => setActiveImage(-1)}
+                  title="View 3D ring preview"
+                  className={cn(
+                    'relative aspect-square border-2 overflow-hidden flex items-center justify-center bg-gray-50 transition-all',
+                    activeImage === -1 ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300',
+                  )}
+                >
+                  {product.model3dPreview
+                    ? <Image src={product.model3dPreview} alt="3D" fill className="object-cover" />
+                    : <Box size={20} className="text-gray-400" />}
+                  <span className="absolute bottom-0.5 left-0 right-0 text-center text-[8px] font-sans font-semibold text-charcoal bg-white/80">3D</span>
+                </button>
+                {displayImages.slice(0, 3).map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImage(i)}
+                    className={cn(
+                      'relative aspect-square border-2 overflow-hidden transition-all',
+                      activeImage === i ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300',
+                    )}
+                  >
+                    <Image src={img} alt="" fill className="object-cover"
+                      style={{ filter: metalFilter, transition: 'filter 0.4s ease' }} />
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* ── Trust badges ── */}
-            <div className="border border-gray-100 divide-y divide-gray-100">
-              {[
-                { icon: Truck, text: `Free UK delivery in ${product.deliveryDays} working days` },
-                { icon: RefreshCw, text: '30-day hassle-free returns' },
-                { icon: Shield, text: 'Lifetime craftsmanship guarantee' },
-              ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-3 px-4 py-3">
-                  <Icon size={14} className="text-gold-500 flex-shrink-0" />
-                  <span className="text-xs font-sans text-gray-600">{text}</span>
+            {/* RIGHT: Blue Nile-style compact panel */}
+            <div className="lg:pl-2">
+              <p className="text-[10px] font-sans tracking-widest uppercase text-gray-400 mb-1">
+                {(product.category as unknown as { name?: string })?.name}
+              </p>
+              <h1 className="font-serif text-2xl lg:text-3xl font-light text-charcoal mb-3 leading-snug">{product.name}</h1>
+
+              {product.reviewCount > 0 && (
+                <button onClick={() => setActiveTab('reviews')} className="flex items-center gap-2 mb-4">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={13} className={i < Math.round(product.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 font-sans">{product.averageRating} ({product.reviewCount})</span>
+                </button>
+              )}
+
+              {/* Price */}
+              <div className="border-t border-gray-100 pt-4 mb-5">
+                <p className="font-serif text-3xl font-light text-charcoal">{formatPrice(finalPrice)}</p>
+                <p className="text-xs font-sans text-gray-400 mt-0.5">Setting Price</p>
+                {pricing.isLive && <p className="text-[10px] font-sans text-emerald-600 mt-1">✓ Live gold price</p>}
+                {saving && saving > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <TrendingDown size={13} className="text-green-600" />
+                    <span className="text-xs font-sans text-green-700">Save <strong>{formatPrice(saving)}</strong> vs high street</span>
+                  </div>
+                )}
+                {product.certification && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Award size={13} className="text-gold-500" />
+                    <span className="text-xs font-sans text-gold-600">{product.certification} Certified</span>
+                  </div>
+                )}
+                <SocialProof productId={product._id} variants={product.variants} className="mt-2 pt-2 border-t border-gray-100" />
+              </div>
+
+              {/* Metal: compact pill circles */}
+              {product.metalOptions.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-[10px] font-sans font-bold tracking-[0.18em] uppercase text-gray-500 mb-2.5">
+                    Metal: <span className="normal-case font-normal text-charcoal">
+                      {activeMetal?.karat ? `${activeMetal.karat} ` : ''}{METAL_LABELS[activeMetal?.type || ''] || activeMetal?.type}
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.metalOptions.map((metal) => {
+                      const key = metalKey(metal);
+                      const active = selectedMetalKey === key || (!selectedMetalKey && metal.isDefault);
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setSelectedMetalKey(key)}
+                          title={`${metal.karat || ''} ${METAL_LABELS[metal.type] || metal.type}`.trim()}
+                          className={cn(
+                            'flex items-center gap-1.5 px-2.5 py-1.5 border-2 rounded-full text-[10px] font-sans font-medium transition-all',
+                            active ? 'border-charcoal text-charcoal' : 'border-gray-200 text-gray-500 hover:border-gray-400',
+                          )}
+                        >
+                          <span className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-200"
+                            style={{ background: METAL_COLOURS[metal.type] || '#ccc' }} />
+                          {metal.karat || (metal.type === 'platinum' ? 'Plt' : metal.type.split('-')[0])}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Ring size dropdown */}
+              {product.variants.length > 0 && (
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-sans font-bold tracking-[0.18em] uppercase text-gray-500">Ring Size</p>
+                    <Link href="/size-guide" className="text-[10px] font-sans text-gold-600 hover:underline">Size Guide</Link>
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={selectedSize}
+                      onChange={e => setSelectedSize(e.target.value)}
+                      className="w-full border border-gray-200 text-sm font-sans text-charcoal px-3 py-2.5 bg-white focus:outline-none focus:border-charcoal appearance-none cursor-pointer"
+                    >
+                      <option value="">Select a size</option>
+                      {product.variants.map(v => (
+                        <option key={v.size} value={v.size} disabled={v.stock === 0}>
+                          {v.size}{v.stock === 0 ? ' — Out of stock' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* Engraving accordion */}
+              {product.isEngravable && (
+                <div className="mb-5 border-t border-gray-100 pt-4">
+                  <button
+                    onClick={() => setEngravingOpen(!engravingOpen)}
+                    className="flex items-center justify-between w-full text-[10px] font-sans font-bold tracking-[0.18em] uppercase text-gray-500 hover:text-charcoal transition-colors"
+                  >
+                    <span>Add Free Engraving</span>
+                    <ChevronDown size={13} className={cn('transition-transform', engravingOpen && 'rotate-180')} />
+                  </button>
+                  {engravingOpen && (
+                    <div className="mt-3">
+                      <input type="text" maxLength={20} placeholder="Your message (max 20 chars)"
+                        value={engraving} onChange={e => setEngraving(e.target.value)}
+                        className="w-full border border-gray-200 text-sm font-sans px-3 py-2.5 focus:outline-none focus:border-charcoal" />
+                      <p className="text-xs text-gray-400 mt-1">{engraving.length}/20</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Delivery line */}
+              <div className="flex items-center gap-2 text-xs font-sans text-gray-500 mb-5">
+                <Truck size={13} className="text-gold-500 flex-shrink-0" />
+                Free UK delivery in {product.deliveryDays} working days
+              </div>
+
+              {/* Primary CTA */}
+              <Link
+                href={`/custom-ring/settings/${product.slug}`}
+                className="w-full bg-charcoal hover:bg-gold-600 text-white py-4 font-sans font-medium text-[11px] tracking-[0.2em] uppercase transition-colors flex items-center justify-center gap-2 mb-3"
+              >
+                <Gem size={14} />
+                Select This Setting
+                <ChevronRight size={14} />
+              </Link>
+
+              {/* Secondary CTAs */}
+              <div className="flex gap-2 mb-5">
+                <button
+                  onClick={handleAddToCart}
+                  className="flex-1 border-2 border-gray-300 hover:border-charcoal text-charcoal py-3 font-sans font-medium text-[10px] tracking-[0.15em] uppercase transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <ShoppingBag size={13} />
+                  Buy Setting Only — {formatPrice(finalPrice)}
+                </button>
+                <button
+                  onClick={() => { toggleItem(product); toast(isWishlisted(product._id) ? 'Removed from wishlist' : 'Saved to wishlist', { icon: '❤️' }); }}
+                  className={cn('w-12 border-2 flex items-center justify-center transition-colors flex-shrink-0',
+                    isWishlisted(product._id) ? 'border-red-300 text-red-400 bg-red-50' : 'border-gray-200 text-gray-500 hover:border-charcoal hover:text-charcoal')}
+                >
+                  <Heart size={16} fill={isWishlisted(product._id) ? 'currentColor' : 'none'} />
+                </button>
+              </div>
+
+              {/* Trust badges */}
+              <div className="border border-gray-100 divide-y divide-gray-100">
+                {[
+                  { icon: Truck,     text: `Free delivery in ${product.deliveryDays} days` },
+                  { icon: RefreshCw, text: '30-day returns' },
+                  { icon: Shield,    text: 'Lifetime craftsmanship guarantee' },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-3 px-4 py-3">
+                    <Icon size={13} className="text-gold-500 flex-shrink-0" />
+                    <span className="text-xs font-sans text-gray-600">{text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+
+        ) : (
+
+          /* ══════════════ STANDARD LAYOUT ══════════════ */
+          <div className="grid lg:grid-cols-2 gap-12">
+
+            {/* ── LEFT: Image Gallery ── */}
+            <div className="flex flex-col gap-4">
+            <div className="flex gap-4">
+              {/* Thumbnails */}
+              <div className="flex flex-col gap-2 w-20 flex-shrink-0">
+                {displayImages.map((img, i) => (
+                  <button key={i} onClick={() => setActiveImage(i)}
+                    className={cn('relative w-20 h-20 border-2 overflow-hidden flex-shrink-0 transition-all',
+                      i === activeImage ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300')}>
+                    <Image src={img} alt="" fill className="object-cover"
+                      style={{ filter: metalFilter, transition: 'filter 0.4s ease' }} />
+                  </button>
+                ))}
+                {product.model3dUrl && (
+                  <button onClick={() => setActiveImage(-1)}
+                    title="View 3D model"
+                    className={cn('relative w-20 h-20 border-2 overflow-hidden flex-shrink-0 transition-all flex items-center justify-center bg-gray-50',
+                      activeImage === -1 ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300')}>
+                    {product.model3dPreview
+                      ? <Image src={product.model3dPreview} alt="3D" fill className="object-cover" />
+                      : <Box size={24} className="text-gray-400" />}
+                    <span className="absolute bottom-0.5 left-0 right-0 text-center text-[9px] font-sans font-semibold text-charcoal bg-white/80">3D</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Main image / 3D viewer */}
+              <div className="relative flex-1 aspect-square bg-gray-50 overflow-hidden">
+                {activeImage === -1 && product.model3dUrl ? (
+                  <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-sans">Loading 3D…</div>}>
+                    <Ring3DViewer
+                      modelUrl={product.model3dUrl}
+                      metal={activeMetal?.type || 'yellow-gold'}
+                      className="w-full h-full"
+                    />
+                  </Suspense>
+                ) : (
+                  <>
+                    <Image
+                      src={displayImages[Math.max(0, activeImage)] || displayImages[0] || ''}
+                      alt={product.name}
+                      fill priority
+                      className="object-cover"
+                      style={{ filter: metalFilter, transition: 'filter 0.4s ease' }}
+                    />
+                    {metalFilter !== 'none' && (
+                      <div className="absolute top-3 right-3 bg-white/85 backdrop-blur-sm border border-gray-100 rounded px-2 py-1 text-[10px] font-sans text-gray-500">
+                        Colour preview
+                      </div>
+                    )}
+                  </>
+                )}
+                {displayImages.length > 1 && activeImage !== -1 && (
+                  <>
+                    <button onClick={() => setActiveImage(p => (p - 1 + displayImages.length) % displayImages.length)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button onClick={() => setActiveImage(p => (p + 1) % displayImages.length)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
+                      <ChevronRight size={16} />
+                    </button>
+                  </>
+                )}
+                {product.isNewArrival && activeImage !== -1 && (
+                  <span className="absolute top-3 left-3 bg-charcoal text-white text-[9px] px-2 py-1 font-sans tracking-widest uppercase">New</span>
+                )}
+              </div>
+            </div>
+            </div>
+
+            {/* ── RIGHT: Product Info ── */}
+            <div>
+              <p className="text-xs text-gray-400 font-sans tracking-widest uppercase mb-1">{(product.category as unknown as { name?: string })?.name}</p>
+              <h1 className="font-serif text-2xl lg:text-3xl font-light text-charcoal mb-2">{product.name}</h1>
+
+              {product.reviewCount > 0 && (
+                <button onClick={() => setActiveTab('reviews')} className="flex items-center gap-2 mb-3">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={13} className={i < Math.round(product.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />)}
+                  </div>
+                  <span className="text-xs text-gray-500 font-sans">{product.averageRating} ({product.reviewCount} reviews)</span>
+                </button>
+              )}
+
+              {/* Price */}
+              <div className="bg-gray-50 border border-gray-100 p-4 mb-5">
+                <div className="flex items-end gap-5 flex-wrap">
+                  {competitorPrice && (
+                    <div>
+                      <p className="text-[10px] font-sans text-gray-400 uppercase tracking-wider mb-0.5">High Street</p>
+                      <p className="font-sans text-base text-gray-400 line-through">{formatPrice(competitorPrice)}</p>
+                    </div>
+                  )}
+                  {(product.salePrice && !pricing.isLive) && (
+                    <div>
+                      <p className="text-[10px] font-sans text-gray-400 uppercase tracking-wider mb-0.5">Was</p>
+                      <p className="font-sans text-base text-gray-400 line-through">{formatPrice(product.basePrice + (activeMetal?.priceModifier || 0))}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-sans text-gray-400 uppercase tracking-wider mb-0.5">Our Price</p>
+                    <p className="font-serif text-3xl font-light text-charcoal">{formatPrice(finalPrice)}</p>
+                  </div>
+                </div>
+                {saving && saving > 0 && (
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
+                    <TrendingDown size={14} className="text-green-600" />
+                    <span className="text-sm font-sans text-green-700">You save <strong>{formatPrice(saving)}</strong> vs high street</span>
+                  </div>
+                )}
+                {product.certification && (
+                  <div className={`flex items-center gap-1.5 ${saving && saving > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-gray-200'}`}>
+                    <Award size={13} className="text-gold-500" />
+                    <span className="text-xs font-sans text-gold-600">{product.certification} Certified</span>
+                  </div>
+                )}
+                <SocialProof productId={product._id} variants={product.variants} className="mt-3 pt-3 border-t border-gray-100" />
+              </div>
+
+              {/* Metal selector */}
+              {product.metalOptions.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal mb-3">
+                    Metal: <span className="normal-case font-normal text-gray-600">
+                      {activeMetal?.karat ? `${activeMetal.karat} ` : ''}{METAL_LABELS[activeMetal?.type || ''] || activeMetal?.type}
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {product.metalOptions.map((metal) => {
+                      const key = metalKey(metal);
+                      const active = (selectedMetalKey === key) || (!selectedMetalKey && metal.isDefault);
+                      return (
+                        <button key={key} onClick={() => setSelectedMetalKey(key)}
+                          title={`${metal.karat || ''} ${METAL_LABELS[metal.type] || metal.type}`.trim()}
+                          className={cn('flex flex-col items-center gap-1.5 p-2 border-2 rounded transition-all min-w-[56px]',
+                            active ? 'border-charcoal bg-gray-50' : 'border-gray-100 hover:border-gray-300')}>
+                          <div className="w-8 h-8 rounded-full border border-gray-200 shadow-sm"
+                            style={{ background: METAL_COLOURS[metal.type] || '#ccc' }} />
+                          <span className="text-[10px] font-sans font-medium text-gray-600 leading-tight text-center">
+                            {metal.karat || (metal.type === 'platinum' ? 'plt' : metal.type.split('-')[0])}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Ring Size */}
+              {product.variants.length > 0 && (
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-sans font-semibold tracking-widest uppercase text-charcoal">Ring Size</p>
+                    <Link href="/size-guide" className="text-xs font-sans text-gold-600 hover:underline flex items-center gap-1">Ring Size Guide</Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {product.variants.map((v) => (
+                      <button key={v.size} disabled={v.stock === 0} onClick={() => setSelectedSize(v.size)}
+                        className={cn('w-11 h-11 text-sm font-sans border-2 transition-all rounded',
+                          selectedSize === v.size ? 'border-charcoal bg-charcoal text-white font-medium'
+                          : v.stock === 0 ? 'border-gray-100 text-gray-300 cursor-not-allowed line-through'
+                          : 'border-gray-200 text-gray-600 hover:border-charcoal')}>
+                        {v.size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Engraving */}
+              {product.isEngravable && (
+                <div className="mb-5">
+                  <button onClick={() => setEngravingOpen(!engravingOpen)}
+                    className="flex items-center gap-2 text-xs font-sans font-semibold tracking-widest uppercase text-charcoal hover:text-gold-600 transition-colors">
+                    Add Engraving (Free) <ChevronDown size={14} className={cn('transition-transform', engravingOpen && 'rotate-180')} />
+                  </button>
+                  {engravingOpen && (
+                    <div className="mt-3">
+                      <input type="text" maxLength={20} placeholder="Your message (max 20 chars)"
+                        value={engraving} onChange={e => setEngraving(e.target.value)} className="input-field" />
+                      <p className="text-xs text-gray-400 mt-1">{engraving.length}/20</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CTAs */}
+              <div className="flex gap-3 mb-5">
+                <button onClick={handleAddToCart} className="flex-1 bg-charcoal hover:bg-gold-600 text-white py-4 font-sans font-medium text-sm tracking-widest uppercase transition-colors flex items-center justify-center gap-2">
+                  <ShoppingBag size={16} />
+                  {selectedDiamond ? `Add Ring + Diamond — ${formatPrice(finalPrice)}` : 'Customise & Buy'}
+                </button>
+                <button
+                  onClick={() => { toggleItem(product); toast(isWishlisted(product._id) ? 'Removed from wishlist' : 'Saved to wishlist', { icon: '❤️' }); }}
+                  className={cn('w-14 border-2 flex items-center justify-center transition-colors',
+                    isWishlisted(product._id) ? 'border-red-300 text-red-400 bg-red-50' : 'border-gray-200 text-gray-500 hover:border-charcoal hover:text-charcoal')}>
+                  <Heart size={18} fill={isWishlisted(product._id) ? 'currentColor' : 'none'} />
+                </button>
+              </div>
+
+              {/* Trust badges */}
+              <div className="border border-gray-100 divide-y divide-gray-100">
+                {[
+                  { icon: Truck,     text: `Free UK delivery in ${product.deliveryDays} working days` },
+                  { icon: RefreshCw, text: '30-day hassle-free returns' },
+                  { icon: Shield,    text: 'Lifetime craftsmanship guarantee' },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-3 px-4 py-3">
+                    <Icon size={14} className="text-gold-500 flex-shrink-0" />
+                    <span className="text-xs font-sans text-gray-600">{text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        )}
 
         {/* ── Tabs ── */}
         <div className="mt-16 border-t border-gray-200">
@@ -636,13 +1002,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             )}
             {activeTab === '3d' && product.model3dUrl && (
               <div className="max-w-2xl">
-                <div className="aspect-square bg-gray-50 border border-gray-100 overflow-hidden rounded-sm">
+                <div className="bg-gray-50 border border-gray-100 overflow-hidden rounded-sm" style={{ height: 480 }}>
                   <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">Loading 3D model…</div>}>
-                    <ModelViewer src={product.model3dUrl} poster={product.model3dPreview} alt={product.name} className="w-full h-full" />
+                    <Ring3DViewer
+                      modelUrl={product.model3dUrl}
+                      metal={activeMetal?.type || 'yellow-gold'}
+                      className="w-full h-full"
+                    />
                   </Suspense>
                 </div>
                 <p className="mt-4 text-xs text-gray-500 font-sans">
-                  Drag to rotate · Scroll to zoom · On mobile, tap the AR button to view this piece in your space.
+                  Drag to rotate · Scroll to zoom · Metal selector above updates the 3D model in real time.
                 </p>
               </div>
             )}
