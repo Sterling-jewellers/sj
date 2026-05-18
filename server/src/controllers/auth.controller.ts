@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.model';
+import { sendWelcomeEmail, sendPasswordResetEmail } from '../services/email.service';
 
 const signToken = (id: string) =>
   jwt.sign({ id }, process.env.JWT_SECRET as string, { expiresIn: (process.env.JWT_EXPIRES_IN || '30d') as `${number}${'s'|'m'|'h'|'d'}` | number });
@@ -16,6 +17,12 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   }
   const user = await User.create({ firstName, lastName, email, password });
   const token = signToken(user._id.toString());
+
+  // Send welcome email (non-blocking)
+  sendWelcomeEmail(email, firstName).catch((err) =>
+    console.error('[email] welcome email failed:', err)
+  );
+
   res.status(201).json({
     token,
     user: { _id: user._id, firstName, lastName, email, role: user.role },
@@ -44,14 +51,21 @@ export const getMe = asyncHandler(async (req: Request & { user?: { _id: string }
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
-    res.status(404).json({ message: 'No account with that email' });
+    // Return success even if user not found (security: don't leak email existence)
+    res.json({ message: 'If an account with that email exists, a reset link has been sent.' });
     return;
   }
   const token = crypto.randomBytes(32).toString('hex');
   user.passwordResetToken = crypto.createHash('sha256').update(token).digest('hex');
-  user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+  user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
   await user.save();
-  res.json({ message: 'Reset email sent', resetToken: token });
+
+  // Send reset email (non-blocking)
+  sendPasswordResetEmail(user.email, user.firstName, token).catch((err) =>
+    console.error('[email] password reset email failed:', err)
+  );
+
+  res.json({ message: 'If an account with that email exists, a reset link has been sent.' });
 });
 
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {

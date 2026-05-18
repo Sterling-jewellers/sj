@@ -60,8 +60,10 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
 
-      # Email
-      - key: SENDGRID_API_KEY
-        sync: false
-      - key: FROM_EMAIL
-        sync: false
+      # Email (Gmail SMTP)
+      - key: SMTP_USER
+        sync: false                # sterlingjewellerslimited@gmail.com
+      - key: SMTP_PASS
+        sync: false                # 16-char Gmail App Password
+      - key: ADMIN_EMAIL
+        sync: false                # email to receive new-order notifications

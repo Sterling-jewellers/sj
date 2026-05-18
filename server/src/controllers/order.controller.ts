@@ -2,7 +2,43 @@ import { Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import Order from '../models/Order.model';
 import Coupon from '../models/Coupon.model';
+import User from '../models/User.model';
 import { AuthRequest } from '../middleware/auth.middleware';
+import {
+  sendOrderConfirmation,
+  sendOrderStatusUpdate,
+  sendAdminNewOrderNotification,
+  OrderEmailData,
+} from '../services/email.service';
+
+/* ── helpers ───────────────────────────────────────────────────────────────── */
+function buildEmailData(order: InstanceType<typeof Order>, orderId: string): OrderEmailData {
+  return {
+    orderNumber:     order.orderNumber,
+    orderId,
+    items:           order.items.map((i) => ({
+      name:          i.name,
+      image:         i.image,
+      price:         i.price,
+      quantity:      i.quantity,
+      selectedMetal: i.selectedMetal,
+      selectedSize:  i.selectedSize,
+    })),
+    subtotal:        order.subtotal,
+    discount:        order.discount,
+    shippingCost:    order.shippingCost,
+    tax:             order.tax,
+    total:           order.total,
+    shippingMethod:  order.shippingMethod,
+    shippingAddress: order.shippingAddress,
+    estimatedDelivery: order.estimatedDelivery,
+    trackingNumber:  order.trackingNumber,
+    trackingUrl:     order.trackingUrl,
+    orderStatus:     order.orderStatus,
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════════════════ */
 
 export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { items, shippingAddress, shippingMethod, couponCode, paymentIntentId } = req.body;
@@ -21,10 +57,10 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     }
   }
 
-  const tax = (subtotal - discount) * 0.2;
+  const tax   = (subtotal - discount) * 0.2;
   const total = subtotal - discount + shippingCost + tax;
 
-  // Ensure every item has a non-empty image (some products may have no images yet)
+  // Ensure every item has a non-empty image
   const safeItems = items.map((item: { image?: string; [key: string]: unknown }) => ({
     ...item,
     image: item.image || '/images/placeholder.jpg',
@@ -42,10 +78,36 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     tax,
     total,
     paymentIntentId,
-    paymentStatus: paymentIntentId ? 'paid' : 'pending',
-    orderStatus: 'confirmed',
+    paymentStatus:    paymentIntentId ? 'paid' : 'pending',
+    orderStatus:      'confirmed',
     estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
+
+  // ── Send emails (non-blocking — don't fail the order if email fails) ──
+  try {
+    const emailData = buildEmailData(order, order._id.toString());
+
+    // Look up customer email
+    let customerEmail = req.body.guestEmail as string | undefined;
+    let firstName     = shippingAddress?.fullName?.split(' ')[0] || 'Customer';
+
+    if (req.user?._id) {
+      const user = await User.findById(req.user._id).select('email firstName');
+      if (user) {
+        customerEmail = user.email;
+        firstName     = user.firstName;
+      }
+    }
+
+    if (customerEmail) {
+      await Promise.allSettled([
+        sendOrderConfirmation(customerEmail, firstName, emailData),
+        sendAdminNewOrderNotification(emailData, customerEmail),
+      ]);
+    }
+  } catch (emailErr) {
+    console.error('[email] order confirmation failed:', emailErr);
+  }
 
   res.status(201).json(order);
 });
@@ -71,7 +133,27 @@ export const getAllOrders = asyncHandler(async (_req: Request, res: Response) =>
 });
 
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
-  const order = await Order.findByIdAndUpdate(req.params.id, { orderStatus: req.body.status }, { new: true });
+  const order = await Order.findByIdAndUpdate(
+    req.params.id,
+    { orderStatus: req.body.status, ...(req.body.trackingNumber ? { trackingNumber: req.body.trackingNumber } : {}), ...(req.body.trackingUrl ? { trackingUrl: req.body.trackingUrl } : {}) },
+    { new: true }
+  ).populate('user', 'firstName email');
+
   if (!order) { res.status(404).json({ message: 'Order not found' }); return; }
+
+  // ── Send status update email ──
+  try {
+    const populatedUser = order.user as unknown as { firstName?: string; email?: string } | null;
+    const customerEmail = populatedUser?.email;
+    const firstName     = populatedUser?.firstName || 'Customer';
+
+    if (customerEmail && ['processing', 'dispatched', 'delivered', 'cancelled'].includes(order.orderStatus)) {
+      const emailData = buildEmailData(order, order._id.toString());
+      await sendOrderStatusUpdate(customerEmail, firstName, emailData);
+    }
+  } catch (emailErr) {
+    console.error('[email] status update email failed:', emailErr);
+  }
+
   res.json(order);
 });
