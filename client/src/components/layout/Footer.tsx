@@ -1,6 +1,10 @@
+'use client';
+
 import Link from 'next/link';
-import { Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail, Shield, Truck, Award, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Instagram, Facebook, Youtube, Phone, Mail, Shield, Truck, Award, RefreshCw } from 'lucide-react';
 import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
+import { newsletterApi } from '@/lib/api';
 
 const trustBadges = [
   { icon: Shield, label: 'Secure Payments', sub: 'SSL Encrypted' },
@@ -10,6 +14,27 @@ const trustBadges = [
 ];
 
 export default function Footer() {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubscribe(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
+    setError('');
+    try {
+      await newsletterApi.subscribe(email);
+      setSubscribed(true);
+      setEmail('');
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <footer className="bg-charcoal text-white">
       {/* Trust badges */}
@@ -131,14 +156,26 @@ export default function Footer() {
               <p className="font-serif text-xl font-light text-white">Join Our World</p>
               <p className="text-xs font-sans text-gray-400 mt-1">Exclusive offers, new collections & jewellery insights.</p>
             </div>
-            <div className="flex gap-0 w-full md:w-auto">
-              <input
-                type="email"
-                placeholder="Your email address"
-                className="flex-1 md:w-72 bg-white/5 border border-white/20 px-4 py-3 text-sm font-sans text-white placeholder:text-gray-500 outline-none focus:border-gold-400"
-              />
-              <button className="btn-gold whitespace-nowrap">Subscribe</button>
-            </div>
+            {subscribed ? (
+              <p className="text-sm font-sans text-gold-400 font-medium">You&apos;re subscribed! ✨</p>
+            ) : (
+              <form onSubmit={handleSubscribe} className="flex flex-col gap-2 w-full md:w-auto">
+                <div className="flex gap-0">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Your email address"
+                    required
+                    className="flex-1 md:w-72 bg-white/5 border border-white/20 px-4 py-3 text-sm font-sans text-white placeholder:text-gray-500 outline-none focus:border-gold-400"
+                  />
+                  <button type="submit" disabled={loading} className="btn-gold whitespace-nowrap disabled:opacity-60">
+                    {loading ? 'Subscribing…' : 'Subscribe'}
+                  </button>
+                </div>
+                {error && <p className="text-xs font-sans text-red-400">{error}</p>}
+              </form>
+            )}
           </div>
         </div>
       </div>

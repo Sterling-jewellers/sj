@@ -164,3 +164,7 @@ export const adminApi = {
 export const goldPriceApi = {
   getPrice: () => api.get('/goldprice'),
 };
+
+export const newsletterApi = {
+  subscribe: (email: string) => api.post('/newsletter/subscribe', { email }),
+};

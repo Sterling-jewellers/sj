@@ -21,6 +21,7 @@ import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
 import goldPriceRoutes from './routes/goldprice.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import newsletterRoutes from './routes/newsletter.routes';
 import * as XLSX from 'xlsx';
 
 const app = express();
@@ -118,6 +119,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/goldprice', goldPriceRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);

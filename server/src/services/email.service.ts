@@ -409,7 +409,60 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   5. ADMIN — NEW ORDER NOTIFICATION
+   5. NEWSLETTER WELCOME
+   ════════════════════════════════════════════════════════════════════════════ */
+export async function sendNewsletterWelcome(toEmail: string): Promise<void> {
+  const clientUrl = process.env.CLIENT_URL || 'https://sjclients.netlify.app';
+
+  const body = `
+    <p class="greeting">Welcome to the Sterling Family! ✨</p>
+    <p class="intro">
+      Thank you for subscribing to the Sterling Jewellers newsletter. We're thrilled to have you with us.
+      Get ready for exclusive access to new collections, special offers, and fine jewellery insights delivered straight to your inbox.
+    </p>
+
+    <div class="order-box" style="text-align:center;padding:28px 24px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-size:36px;color:#C9A96E;font-weight:400;margin-bottom:8px;">10%</div>
+      <div style="font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#2C2C2C;margin-bottom:4px;">OFF YOUR FIRST ORDER</div>
+      <div style="font-size:12px;color:#999;margin-bottom:16px;">Use code at checkout</div>
+      <div style="display:inline-block;background:#2C2C2C;color:#C9A96E;font-size:18px;font-weight:700;letter-spacing:0.22em;padding:10px 28px;border:1px solid #C9A96E;">STERLING10</div>
+    </div>
+
+    <p style="font-size:13px;color:#666;line-height:1.7;margin:20px 0 8px;">Here's what to expect from us:</p>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
+      ${[
+        ['💎', 'New Collections',    'Be first to discover our latest fine jewellery pieces.'],
+        ['🎁', 'Exclusive Offers',   'Members-only discounts and early access to sales.'],
+        ['✨', 'Jewellery Insights', 'Care tips, style guides, and expert advice.'],
+      ].map(([icon, title, desc]) => `
+      <tr>
+        <td style="width:40px;font-size:20px;padding:10px 0;vertical-align:top;">${icon}</td>
+        <td style="padding:10px 0 10px 12px;border-bottom:1px solid #F0EBE3;">
+          <div style="font-weight:600;font-size:13px;color:#2C2C2C;margin-bottom:3px;">${title}</div>
+          <div style="font-size:12px;color:#888;">${desc}</div>
+        </td>
+      </tr>`).join('')}
+    </table>
+
+    <a href="${clientUrl}/category/jewellery" class="btn">Explore Collections</a>
+
+    <p style="font-size:11px;color:#BBB;margin-top:24px;line-height:1.7;">
+      You're receiving this because you subscribed at sterlingjewellers.co.uk.<br/>
+      <a href="${clientUrl}/unsubscribe" style="color:#C9A96E;">Unsubscribe</a> anytime.
+    </p>
+  `;
+
+  await getTransporter().sendMail({
+    from: `"Sterling Jewellers" <${process.env.SMTP_USER}>`,
+    to: toEmail,
+    subject: 'Welcome to Sterling Jewellers ✨ — You\'re in!',
+    html: baseLayout('Welcome to Sterling Jewellers', body),
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   6. ADMIN — NEW ORDER NOTIFICATION
    ════════════════════════════════════════════════════════════════════════════ */
 export async function sendAdminNewOrderNotification(data: OrderEmailData, customerEmail: string): Promise<void> {
   const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;

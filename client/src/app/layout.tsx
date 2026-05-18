@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import { Lora, Gantari } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import WhatsAppButton from '@/components/ui/WhatsAppButton';
+import NewsletterPopup from '@/components/ui/NewsletterPopup';
+import StickyMobileBar from '@/components/ui/StickyMobileBar';
 
 // Lora — serif brand font for headings and product titles
 const lora = Lora({
@@ -122,6 +125,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <Providers>{children}</Providers>
+        <WhatsAppButton />
+        <NewsletterPopup />
+        <StickyMobileBar />
       </body>
     </html>
   );
