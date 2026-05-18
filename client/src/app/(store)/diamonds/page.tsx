@@ -9,7 +9,7 @@ import { formatPrice } from '@/lib/utils';
 import Link from 'next/link';
 import { RING_BUILDER_ENABLED } from '@/lib/features';
 import Image from 'next/image';
-import { LayoutGrid, List, Search, RotateCcw, ChevronDown, ChevronUp, Gem, FlaskConical } from 'lucide-react';
+import { LayoutGrid, List, Search, RotateCcw, ChevronDown, ChevronUp, Gem, FlaskConical, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Shape-specific diamond photos — fallback per shape for Nivoda diamonds without imageUrl
@@ -214,16 +214,17 @@ function DiamondSearchInner() {
     router.replace(`/diamonds?${params.toString()}`, { scroll: false });
   };
 
-  const [shapes,    setShapes]    = useState<string[]>([]);
-  const [colours,   setColours]   = useState<string[]>([]);
-  const [clarities, setClarities] = useState<string[]>([]);
-  const [cuts,      setCuts]      = useState<string[]>([]);
-  const [labs,      setLabs]      = useState<string[]>([]);
-  const [carat,     setCarat]     = useState<[number,number]>(D_CARAT);
-  const [priceR,    setPriceR]    = useState<[number,number]>(D_PRICE);
-  const [search,    setSearch]    = useState('');
-  const [view,      setView]      = useState<'grid'|'list'>('grid');
-  const [sort,      setSort]      = useState('price-asc');
+  const [shapes,       setShapes]       = useState<string[]>([]);
+  const [colours,      setColours]      = useState<string[]>([]);
+  const [clarities,    setClarities]    = useState<string[]>([]);
+  const [cuts,         setCuts]         = useState<string[]>([]);
+  const [labs,         setLabs]         = useState<string[]>([]);
+  const [carat,        setCarat]        = useState<[number,number]>(D_CARAT);
+  const [priceR,       setPriceR]       = useState<[number,number]>(D_PRICE);
+  const [search,       setSearch]       = useState('');
+  const [view,         setView]         = useState<'grid'|'list'>('grid');
+  const [sort,         setSort]         = useState('price-asc');
+  const [filterOpen,   setFilterOpen]   = useState(false);
 
   const tog = useCallback((arr: string[], set: (v: string[]) => void, v: string) => {
     set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
@@ -271,35 +272,98 @@ function DiamondSearchInner() {
     );
   }
 
+  const activeFilterCount = shapes.length + colours.length + clarities.length + cuts.length + labs.length +
+    (carat[0] !== D_CARAT[0] || carat[1] !== D_CARAT[1] ? 1 : 0) +
+    (priceR[0] !== D_PRICE[0] || priceR[1] !== D_PRICE[1] ? 1 : 0);
+
+  // Shared filter panel content (used in both desktop sidebar and mobile drawer)
+  const FilterPanel = () => (
+    <div className="space-y-0">
+      <FilterBlock title="Shape">
+        <div className="grid grid-cols-5 gap-1.5">
+          {SHAPES.map(s => (
+            <button key={s} onClick={() => tog(shapes, setShapes, s)} title={s.charAt(0).toUpperCase()+s.slice(1)}
+              className={cn('flex flex-col items-center gap-1 py-1.5 border rounded transition-all',
+                shapes.includes(s) ? 'border-amber-500 bg-amber-50 text-amber-600' : 'border-gray-100 text-gray-400 hover:border-gray-300')}>
+              <ShapeIcon shape={s} size={22} />
+              <span className="text-[8px] font-sans capitalize">{s.slice(0,3)}</span>
+            </button>
+          ))}
+        </div>
+      </FilterBlock>
+
+      <FilterBlock title="Carat Weight">
+        <DualSlider min={0.20} max={5.00} step={0.05} lo={carat[0]} hi={carat[1]}
+          onChange={(a,b) => setCarat([a,b])} fmt={v => `${v.toFixed(2)} ct`} />
+      </FilterBlock>
+
+      <FilterBlock title="Price">
+        <DualSlider min={100} max={100000} step={100} lo={priceR[0]} hi={priceR[1]}
+          onChange={(a,b) => setPriceR([a,b])} fmt={v => `£${v.toLocaleString('en-GB')}`} />
+      </FilterBlock>
+
+      <FilterBlock title="Clarity">
+        <div className="flex flex-wrap gap-1">{CLARITY.map(c => <Pill key={c} active={clarities.includes(c)} onClick={() => tog(clarities, setClarities, c)}>{c}</Pill>)}</div>
+      </FilterBlock>
+
+      <FilterBlock title="Colour">
+        <div className="flex flex-wrap gap-1">
+          {COLOURS.map(c => (
+            <button key={c} onClick={() => tog(colours, setColours, c)}
+              className={cn('w-8 h-8 text-xs font-sans border rounded transition-all',
+                colours.includes(c) ? 'bg-amber-500 border-amber-500 text-white font-semibold' : 'border-gray-200 text-gray-600 hover:border-amber-300')}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </FilterBlock>
+
+      <FilterBlock title="Certificate">
+        <div className="flex gap-2">{LABS.map(l => <Pill key={l} active={labs.includes(l)} onClick={() => tog(labs, setLabs, l)}>{l}</Pill>)}</div>
+      </FilterBlock>
+
+      <FilterBlock title="Cut">
+        <div className="flex flex-wrap gap-1">{CUTS.map(c => <Pill key={c} active={cuts.includes(c)} onClick={() => tog(cuts, setCuts, c)}>{c}</Pill>)}</div>
+      </FilterBlock>
+
+      {hasFilters && (
+        <button onClick={reset} className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-sans border border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500 transition-colors rounded mt-2">
+          <RotateCcw size={11} /> Reset All Filters
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="bg-ivory min-h-screen">
 
       {/* ── Hero banner ── */}
-      <div className="bg-charcoal py-8">
+      <div className="bg-charcoal py-6 md:py-8">
         <div className="page-container text-center">
-          <p className="section-subtitle text-gold-400 mb-2">GIA &amp; IGI Certified</p>
-          <h1 className="font-serif text-4xl font-light text-white">Choose Your Diamond</h1>
-          <div className="gold-divider mt-3" />
+          <p className="section-subtitle text-gold-400 mb-1.5 text-xs md:text-sm">GIA &amp; IGI Certified</p>
+          <h1 className="font-serif text-2xl md:text-4xl font-light text-white">Choose Your Diamond</h1>
+          <div className="gold-divider mt-2 md:mt-3" />
         </div>
       </div>
 
-      {/* ── Stone type toggle — full width, prominent ── */}
+      {/* ── Natural / Lab tab bar ── */}
       <div className="bg-white border-b border-gray-200 sticky top-[64px] z-30">
-        <div className="page-container">
+        <div className="max-w-[1400px] mx-auto px-4">
           <div className="flex">
             <button
               onClick={() => switchType('natural')}
               className={cn(
-                'flex items-center gap-2.5 px-8 py-4 text-sm font-sans font-medium transition-all border-b-2',
+                'flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 px-4 md:px-8 py-3.5 md:py-4 text-[13px] md:text-sm font-sans font-medium transition-all border-b-2',
                 stoneType === 'natural'
                   ? 'border-amber-500 text-charcoal bg-champagne/40'
-                  : 'border-transparent text-gray-500 hover:text-charcoal hover:bg-gray-50'
+                  : 'border-transparent text-gray-500 hover:text-charcoal'
               )}
             >
-              <Gem size={16} className={stoneType === 'natural' ? 'text-amber-500' : 'text-gray-400'} />
-              Natural Diamonds
+              <Gem size={15} className={stoneType === 'natural' ? 'text-amber-500' : 'text-gray-400'} />
+              <span className="hidden sm:inline">Natural Diamonds</span>
+              <span className="sm:hidden">Natural</span>
               {!isLoading && stoneType === 'natural' && (
-                <span className="ml-1 text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">
                   {diamonds.length}
                 </span>
               )}
@@ -307,16 +371,17 @@ function DiamondSearchInner() {
             <button
               onClick={() => switchType('lab')}
               className={cn(
-                'flex items-center gap-2.5 px-8 py-4 text-sm font-sans font-medium transition-all border-b-2',
+                'flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 px-4 md:px-8 py-3.5 md:py-4 text-[13px] md:text-sm font-sans font-medium transition-all border-b-2',
                 stoneType === 'lab'
                   ? 'border-emerald-500 text-charcoal bg-emerald-50/60'
-                  : 'border-transparent text-gray-500 hover:text-charcoal hover:bg-gray-50'
+                  : 'border-transparent text-gray-500 hover:text-charcoal'
               )}
             >
-              <FlaskConical size={16} className={stoneType === 'lab' ? 'text-emerald-500' : 'text-gray-400'} />
-              Lab Grown Diamonds
+              <FlaskConical size={15} className={stoneType === 'lab' ? 'text-emerald-500' : 'text-gray-400'} />
+              <span className="hidden sm:inline">Lab Grown Diamonds</span>
+              <span className="sm:hidden">Lab Grown</span>
               {!isLoading && stoneType === 'lab' && (
-                <span className="ml-1 text-[11px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">
                   {diamonds.length}
                 </span>
               )}
@@ -325,82 +390,90 @@ function DiamondSearchInner() {
         </div>
       </div>
 
-      <div className="page-container py-8">
+      {/* ── Mobile toolbar: filter + sort ── */}
+      <div className="lg:hidden bg-white border-b border-gray-100 px-4 py-2.5 flex items-center justify-between gap-3">
+        <button
+          onClick={() => setFilterOpen(true)}
+          className="flex items-center gap-2 text-[13px] font-sans text-charcoal border border-gray-200 px-3 py-2 rounded hover:border-charcoal transition-colors"
+        >
+          <SlidersHorizontal size={14} />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="bg-charcoal text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-semibold">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+        <div className="flex items-center gap-2">
+          <select value={sort} onChange={e => setSort(e.target.value)}
+            className="text-[12px] font-sans border border-gray-200 rounded px-2 py-2 focus:outline-none bg-white">
+            <option value="price-asc">Price ↑</option>
+            <option value="price-desc">Price ↓</option>
+            <option value="caratWeight-desc">Carat ↓</option>
+            <option value="caratWeight-asc">Carat ↑</option>
+          </select>
+          <div className="flex border border-gray-200 rounded overflow-hidden">
+            {(['grid','list'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)} className={cn('p-2 transition-colors', view === v ? 'bg-charcoal text-white' : 'text-gray-400')}>
+                {v === 'grid' ? <LayoutGrid size={14} /> : <List size={14} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Mobile filter drawer ── */}
+      {filterOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setFilterOpen(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white overflow-y-auto shadow-2xl flex flex-col">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <span className="font-serif text-lg text-charcoal">Filters</span>
+              <button onClick={() => setFilterOpen(false)} className="p-1.5 text-gray-400 hover:text-charcoal">
+                <X size={20} />
+              </button>
+            </div>
+            {/* Filters */}
+            <div className="flex-1 px-5 py-4">
+              <FilterPanel />
+            </div>
+            {/* Apply button */}
+            <div className="px-5 py-4 border-t border-gray-100 bg-white">
+              <button
+                onClick={() => setFilterOpen(false)}
+                className="w-full bg-charcoal text-white py-3 text-sm font-sans font-medium tracking-wide hover:bg-charcoal/90 transition-colors"
+              >
+                Show {diamonds.length} Diamond{diamonds.length !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5 md:py-8">
         <div className="flex gap-8 items-start">
 
-          {/* ── Sidebar ── */}
-          <aside className="w-64 shrink-0 sticky top-[120px] max-h-[calc(100vh-8rem)] overflow-y-auto">
+          {/* ── Desktop sidebar ── */}
+          <aside className="hidden lg:block w-64 shrink-0 sticky top-[120px] max-h-[calc(100vh-8rem)] overflow-y-auto">
             <div className="bg-white border border-gray-100 p-5 shadow-sm">
-
-              <FilterBlock title="Shape">
-                <div className="grid grid-cols-5 gap-1.5">
-                  {SHAPES.map(s => (
-                    <button key={s} onClick={() => tog(shapes, setShapes, s)} title={s.charAt(0).toUpperCase()+s.slice(1)}
-                      className={cn('flex flex-col items-center gap-1 py-1.5 border rounded transition-all',
-                        shapes.includes(s) ? 'border-amber-500 bg-amber-50 text-amber-600' : 'border-gray-100 text-gray-400 hover:border-gray-300')}>
-                      <ShapeIcon shape={s} size={22} />
-                      <span className="text-[8px] font-sans capitalize">{s.slice(0,3)}</span>
-                    </button>
-                  ))}
-                </div>
-              </FilterBlock>
-
-              <FilterBlock title="Carat Weight">
-                <DualSlider min={0.20} max={5.00} step={0.05} lo={carat[0]} hi={carat[1]}
-                  onChange={(a,b) => setCarat([a,b])} fmt={v => `${v.toFixed(2)} ct`} />
-              </FilterBlock>
-
-              <FilterBlock title="Price">
-                <DualSlider min={100} max={100000} step={100} lo={priceR[0]} hi={priceR[1]}
-                  onChange={(a,b) => setPriceR([a,b])} fmt={v => `£${v.toLocaleString('en-GB')}`} />
-              </FilterBlock>
-
-              <FilterBlock title="Clarity">
-                <div className="flex flex-wrap gap-1">{CLARITY.map(c => <Pill key={c} active={clarities.includes(c)} onClick={() => tog(clarities, setClarities, c)}>{c}</Pill>)}</div>
-              </FilterBlock>
-
-              <FilterBlock title="Colour">
-                <div className="flex flex-wrap gap-1">
-                  {COLOURS.map(c => (
-                    <button key={c} onClick={() => tog(colours, setColours, c)}
-                      className={cn('w-8 h-8 text-xs font-sans border rounded transition-all',
-                        colours.includes(c) ? 'bg-amber-500 border-amber-500 text-white font-semibold' : 'border-gray-200 text-gray-600 hover:border-amber-300')}>
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </FilterBlock>
-
-              <FilterBlock title="Certificate">
-                <div className="flex gap-2">{LABS.map(l => <Pill key={l} active={labs.includes(l)} onClick={() => tog(labs, setLabs, l)}>{l}</Pill>)}</div>
-              </FilterBlock>
-
-              <FilterBlock title="Cut">
-                <div className="flex flex-wrap gap-1">{CUTS.map(c => <Pill key={c} active={cuts.includes(c)} onClick={() => tog(cuts, setCuts, c)}>{c}</Pill>)}</div>
-              </FilterBlock>
-
-              {hasFilters && (
-                <button onClick={reset} className="w-full flex items-center justify-center gap-2 py-2 text-xs font-sans border border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500 transition-colors rounded mt-1">
-                  <RotateCcw size={11} /> Reset Filters
-                </button>
-              )}
+              <FilterPanel />
             </div>
           </aside>
 
           {/* ── Results ── */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            {/* Desktop toolbar */}
+            <div className="hidden lg:flex flex-wrap items-center justify-between gap-3 mb-5">
               <div>
                 <h2 className="font-serif text-xl text-charcoal">
                   {stoneType === 'lab' ? 'Lab Grown Diamonds' : 'Natural Diamonds'}
                 </h2>
                 <p className="text-xs font-sans text-gray-400 mt-0.5">
-                  {isLoading
-                    ? 'Loading diamonds…'
-                    : `${diamonds.length.toLocaleString()} diamond${diamonds.length !== 1 ? 's' : ''} available`}
+                  {isLoading ? 'Loading diamonds…' : `${diamonds.length.toLocaleString()} diamond${diamonds.length !== 1 ? 's' : ''} available`}
                 </p>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU / cert. no."
@@ -423,10 +496,22 @@ function DiamondSearchInner() {
               </div>
             </div>
 
+            {/* Mobile: result count + search */}
+            <div className="lg:hidden flex items-center justify-between mb-4">
+              <p className="text-[12px] font-sans text-gray-500">
+                {isLoading ? 'Loading…' : `${diamonds.length.toLocaleString()} results`}
+              </p>
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+                  className="pl-7 pr-3 py-1.5 text-[12px] font-sans border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-amber-300 w-32" />
+              </div>
+            </div>
+
             {/* Loading skeleton */}
             {isLoading && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {Array.from({length: 9}).map((_,i) => (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                {Array.from({length: 6}).map((_,i) => (
                   <div key={i} className="bg-white border border-gray-100 animate-pulse">
                     <div className="aspect-square bg-gray-200" />
                     <div className="p-3 space-y-2">
@@ -440,34 +525,40 @@ function DiamondSearchInner() {
 
             {/* Empty state */}
             {!isLoading && diamonds.length === 0 && (
-              <div className="text-center py-20 bg-white border border-gray-100">
-                <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" viewBox="0 0 64 64" fill="none">
+              <div className="text-center py-16 bg-white border border-gray-100">
+                <svg className="w-14 h-14 text-gray-200 mx-auto mb-4" viewBox="0 0 64 64" fill="none">
                   <polygon points="32,4 58,20 50,54 14,54 6,20" stroke="currentColor" strokeWidth="2" />
                 </svg>
-                <p className="font-sans text-gray-500 mb-2">No diamonds found matching your filters</p>
-                <p className="text-xs text-gray-400 mb-4">Try adjusting the carat or price range</p>
+                <p className="font-sans text-gray-500 mb-2">No diamonds found</p>
+                <p className="text-xs text-gray-400 mb-4">Try adjusting your filters</p>
                 <button onClick={reset} className="btn-gold text-xs">Reset Filters</button>
               </div>
             )}
 
             {/* Grid view */}
             {!isLoading && view === 'grid' && diamonds.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 {diamonds.map(d => <DiamondCard key={d._id} d={d} />)}
               </div>
             )}
 
-            {/* List view */}
+            {/* List view — on mobile falls back to card grid */}
             {!isLoading && view === 'list' && diamonds.length > 0 && (
-              <div className="border border-gray-100 overflow-x-auto">
-                <div className="bg-charcoal text-white text-[10px] font-sans font-semibold uppercase tracking-wide px-4 py-2 min-w-[640px]"
-                  style={{ display:'grid', gridTemplateColumns:'52px 1fr 72px 80px 64px 80px 96px 88px', gap:'12px' }}>
-                  <span /><span>Shape</span><span>Carat</span><span>Cut</span><span>Colour</span><span>Clarity</span><span>Price</span><span />
+              <>
+                <div className="hidden md:block border border-gray-100 overflow-x-auto">
+                  <div className="bg-charcoal text-white text-[10px] font-sans font-semibold uppercase tracking-wide px-4 py-2 min-w-[640px]"
+                    style={{ display:'grid', gridTemplateColumns:'52px 1fr 72px 80px 64px 80px 96px 88px', gap:'12px' }}>
+                    <span /><span>Shape</span><span>Carat</span><span>Cut</span><span>Colour</span><span>Clarity</span><span>Price</span><span />
+                  </div>
+                  <div className="min-w-[640px]">
+                    {diamonds.map((d,i) => <DiamondRow key={d._id} d={d} i={i} />)}
+                  </div>
                 </div>
-                <div className="min-w-[640px]">
-                  {diamonds.map((d,i) => <DiamondRow key={d._id} d={d} i={i} />)}
+                {/* Mobile: list view shows cards */}
+                <div className="md:hidden grid grid-cols-2 gap-3">
+                  {diamonds.map(d => <DiamondCard key={d._id} d={d} />)}
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>

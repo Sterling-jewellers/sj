@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
-import { Search, Heart, ShoppingBag, User, Menu, X, Phone, ChevronDown } from 'lucide-react';
+import { Search, Heart, ShoppingBag, User, Menu, X, Phone, ChevronDown, ChevronRight } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuthStore } from '@/store/authStore';
@@ -10,6 +10,49 @@ import MegaMenu from './MegaMenu';
 import SearchModal from './SearchModal';
 import { cn } from '@/lib/utils';
 import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
+
+// Mobile sub-menu links for each category (shown in accordion on mobile)
+const MOBILE_SUB_LINKS: Record<string, { label: string; href: string }[]> = {
+  'Engagement Rings': [
+    { label: 'All Engagement Rings', href: '/category/engagement-rings' },
+    { label: 'Solitaire Rings',      href: '/category/engagement-rings?style=solitaire' },
+    { label: 'Halo Rings',           href: '/category/engagement-rings?style=halo' },
+    { label: 'Three Stone Rings',    href: '/category/engagement-rings?style=three-stone' },
+    { label: 'Pavé Rings',           href: '/category/engagement-rings?style=pave' },
+    { label: 'Vintage Rings',        href: '/category/engagement-rings?style=vintage' },
+  ],
+  'Rings': [
+    { label: 'All Rings',        href: '/category/rings' },
+    { label: 'Ladies Rings',     href: '/category/ladies-rings' },
+    { label: 'Gents Rings',      href: '/category/gents-rings' },
+    { label: 'Signet Rings',     href: '/category/signet-rings' },
+    { label: 'Baby Rings',       href: '/category/baby-rings' },
+    { label: 'Silver Rings',     href: '/category/silver-rings' },
+  ],
+  'Wedding Rings': [
+    { label: 'All Wedding Rings', href: '/category/wedding-rings' },
+    { label: 'Wedding Bands',     href: '/category/wedding-bands' },
+    { label: 'Ladies Bands',      href: '/category/wedding-bands?gender=ladies' },
+    { label: 'Gents Bands',       href: '/category/wedding-bands?gender=gents' },
+  ],
+  'Diamonds': [
+    { label: 'All Diamonds',       href: '/diamonds' },
+    { label: 'Natural Diamonds',   href: '/diamonds?type=natural' },
+    { label: 'Lab Grown Diamonds', href: '/diamonds?type=lab' },
+    { label: 'Diamond Education',  href: '/diamond-education' },
+  ],
+  'Jewellery': [
+    { label: 'All Jewellery',    href: '/category/jewellery' },
+    { label: 'Gold Earrings',    href: '/category/gold-earrings' },
+    { label: 'Gold Pendants',    href: '/category/gold-pendants' },
+    { label: 'Gold Bracelets',   href: '/category/gold-bracelets' },
+    { label: 'Gold Bangles',     href: '/category/gold-bangles' },
+    { label: 'Gold Chains',      href: '/category/gold-chains' },
+    { label: 'Silver Earrings',  href: '/category/silver-earrings' },
+    { label: 'Silver Pendants',  href: '/category/silver-pendants' },
+    { label: 'Silver Bracelets', href: '/category/silver-bracelets' },
+  ],
+};
 
 const allNavLinks = [
   { label: 'Engagement Rings', href: '/category/engagement-rings', hasMenu: true,  ringBuilder: false, diamonds: false },
@@ -27,10 +70,11 @@ const navLinks = allNavLinks.filter(l =>
 );
 
 export default function Navbar() {
-  const [activeMenu, setActiveMenu]   = useState<string | null>(null);
-  const [mobileOpen, setMobileOpen]   = useState(false);
-  const [searchOpen, setSearchOpen]   = useState(false);
-  const [mounted, setMounted]         = useState(false);
+  const [activeMenu,    setActiveMenu]    = useState<string | null>(null);
+  const [mobileOpen,    setMobileOpen]    = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
+  const [searchOpen,    setSearchOpen]    = useState(false);
+  const [mounted,       setMounted]       = useState(false);
   const closeTimer                    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { getTotalItems, openCart } = useCartStore();
@@ -187,21 +231,69 @@ export default function Navbar() {
 
         {/* ── Mobile Menu ── */}
         {mobileOpen && (
-          <div className="lg:hidden bg-white border-t border-gray-100 py-2">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center justify-between px-6 py-3.5 text-[14px] font-sans font-normal text-black hover:bg-gray-50 border-b border-gray-50 transition-colors"
-              >
-                {link.label}
-                {link.hasMenu && <ChevronDown size={13} className="text-gray-400" />}
-              </Link>
-            ))}
-            <div className="px-6 pt-4 pb-3 flex items-center gap-3 text-[11px] font-sans text-gray-400">
-              <Phone size={12} />
-              +44 742 906 5954
+          <div className="lg:hidden bg-white border-t border-gray-100 overflow-y-auto max-h-[80vh]">
+            {navLinks.map((link) => {
+              const subLinks = MOBILE_SUB_LINKS[link.label];
+              const isExpanded = mobileExpanded === link.label;
+
+              if (link.hasMenu && subLinks) {
+                return (
+                  <div key={link.label} className="border-b border-gray-100">
+                    {/* Accordion header — tap chevron to expand, tap label to navigate */}
+                    <div className="flex items-center">
+                      <Link
+                        href={link.href}
+                        onClick={() => setMobileOpen(false)}
+                        className="flex-1 px-6 py-4 text-[14px] font-sans font-medium text-black"
+                      >
+                        {link.label}
+                      </Link>
+                      <button
+                        onClick={() => setMobileExpanded(isExpanded ? null : link.label)}
+                        className="px-5 py-4 text-gray-400 hover:text-charcoal transition-colors"
+                        aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                      >
+                        <ChevronDown size={16} className={cn('transition-transform duration-200', isExpanded && 'rotate-180')} />
+                      </button>
+                    </div>
+
+                    {/* Sub-links */}
+                    {isExpanded && (
+                      <div className="bg-gray-50 border-t border-gray-100">
+                        {subLinks.map(sub => (
+                          <Link
+                            key={sub.label}
+                            href={sub.href}
+                            onClick={() => { setMobileOpen(false); setMobileExpanded(null); }}
+                            className="flex items-center gap-2 pl-9 pr-6 py-3 text-[13px] font-sans text-gray-600 hover:text-charcoal hover:bg-gray-100 transition-colors border-b border-gray-100 last:border-0"
+                          >
+                            <ChevronRight size={11} className="text-gray-300 flex-shrink-0" />
+                            {sub.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Plain link (no sub-menu)
+              return (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center px-6 py-4 text-[14px] font-sans font-medium text-black hover:bg-gray-50 border-b border-gray-100 transition-colors"
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+
+            {/* Contact */}
+            <div className="px-6 py-4 flex items-center gap-3 text-[12px] font-sans text-gray-400 bg-gray-50">
+              <Phone size={13} className="text-gold-500" />
+              <span>+44 742 906 5954</span>
             </div>
           </div>
         )}
