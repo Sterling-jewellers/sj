@@ -24,9 +24,15 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
   const tax = (subtotal - discount) * 0.2;
   const total = subtotal - discount + shippingCost + tax;
 
+  // Ensure every item has a non-empty image (some products may have no images yet)
+  const safeItems = items.map((item: { image?: string; [key: string]: unknown }) => ({
+    ...item,
+    image: item.image || '/images/placeholder.jpg',
+  }));
+
   const order = await Order.create({
     user: req.user?._id,
-    items,
+    items: safeItems,
     shippingAddress,
     shippingMethod,
     shippingCost,

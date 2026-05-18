@@ -186,11 +186,26 @@ export default function CategoryClient({ slug }: { slug: string }) {
   const [sort,         setSort]         = useState('featured');
   const [drawerOpen,   setDrawerOpen]   = useState(false);
 
-  const { data: catData }  = useQuery({ queryKey: ['category', slug], queryFn: () => categoriesApi.getBySlug(slug) });
+  // Fetch the category — catch 404s so the query still resolves
+  const { data: catData, isSuccess: catResolved } = useQuery({
+    queryKey: ['category', slug],
+    queryFn:  () => categoriesApi.getBySlug(slug).catch(() => null),
+    retry:    false,
+  });
+
+  const categoryId = catData?.data?._id as string | undefined;
+
+  // Run the product query once the category lookup is done.
+  // If a real category was found  → filter by its MongoDB _id.
+  // If no category matched (e.g. "jewellery", "rings" meta-slugs) → return ALL active products.
   const { data: prodData, isLoading } = useQuery({
-    queryKey: ['cat-products', slug, catData?.data?._id],
-    queryFn:  () => productsApi.getAll({ category: catData?.data?._id, limit: 80 }),
-    enabled:  !!catData?.data,
+    queryKey: ['cat-products', slug, categoryId ?? 'all'],
+    queryFn:  () => productsApi.getAll({
+      ...(categoryId ? { category: categoryId } : {}),
+      limit: 200,
+    }),
+    enabled: catResolved,   // run as soon as category lookup finishes (found or not)
+    staleTime: 5 * 60_000,
   });
 
   const category = catData?.data;
@@ -271,9 +286,9 @@ export default function CategoryClient({ slug }: { slug: string }) {
           <h1 className="font-serif text-3xl md:text-4xl font-light capitalize">
             {category?.name ?? slug.replace(/-/g, ' ')}
           </h1>
-          {category?.description && (
-            <p className="text-[13px] font-sans text-gray-400 mt-2 max-w-md mx-auto">{category.description}</p>
-          )}
+          <p className="text-[13px] font-sans text-gray-400 mt-2 max-w-md mx-auto">
+            {category?.description ?? 'Browse our full collection of fine jewellery — handcrafted in gold and silver with free UK delivery.'}
+          </p>
         </div>
         <div className="h-px bg-gradient-to-r from-transparent via-[#B8860B]/50 to-transparent" />
       </div>
@@ -364,8 +379,17 @@ export default function CategoryClient({ slug }: { slug: string }) {
               <svg viewBox="0 0 80 80" className="w-14 h-14 mb-4 opacity-15">
                 <circle cx="40" cy="40" r="28" fill="none" stroke="#888" strokeWidth="7" />
               </svg>
-              <p className="font-serif text-xl text-charcoal">No results match your selection</p>
-              <button onClick={clearAll} className="mt-4 text-[13px] font-sans underline text-charcoal">Clear filters</button>
+              {activeCount > 0 ? (
+                <>
+                  <p className="font-serif text-xl text-charcoal">No results match your selection</p>
+                  <button onClick={clearAll} className="mt-4 text-[13px] font-sans underline text-charcoal">Clear filters</button>
+                </>
+              ) : (
+                <>
+                  <p className="font-serif text-xl text-charcoal">No products yet</p>
+                  <p className="mt-2 text-[13px] font-sans text-gray-400">Run a Hanron sync from your local server to populate this collection.</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10">

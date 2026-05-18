@@ -50,7 +50,7 @@ export interface IOrder extends Document {
 const orderItemSchema = new Schema<IOrderItem>({
   product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   name: { type: String, required: true },
-  image: { type: String, required: true },
+  image: { type: String, default: '/images/placeholder.jpg' },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true, min: 1 },
   selectedMetal: String,
@@ -61,7 +61,7 @@ const orderItemSchema = new Schema<IOrderItem>({
 
 const orderSchema = new Schema<IOrder>(
   {
-    orderNumber: { type: String, required: true, unique: true },
+    orderNumber: { type: String, unique: true },   // auto-generated in pre('validate')
     user: { type: Schema.Types.ObjectId, ref: 'User' },
     guestEmail: String,
     items: [orderItemSchema],
@@ -99,9 +99,12 @@ const orderSchema = new Schema<IOrder>(
   { timestamps: true }
 );
 
-orderSchema.pre('save', function (next) {
+// Generate orderNumber BEFORE validation so the required-like uniqueness check passes.
+// pre('save') runs after validation — too late. pre('validate') runs first.
+orderSchema.pre('validate', function (next) {
   if (!this.orderNumber) {
-    this.orderNumber = `SJ-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const rand = Math.floor(Math.random() * 9000) + 1000; // 4-digit suffix
+    this.orderNumber = `SJ-${Date.now()}-${rand}`;
   }
   next();
 });
