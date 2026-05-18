@@ -1,44 +1,49 @@
 import Link from 'next/link';
-import Image from 'next/image';
 
 interface Category {
   _id: string;
   name: string;
   slug: string;
   image: string;
-  description?: string;
 }
 
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=700&fit=crop';
-
+/* ── Curated luxury Unsplash images per category slug ────────────────────── */
 const CATEGORY_IMAGES: Record<string, string> = {
-  'engagement-rings':  'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&h=700&fit=crop',
-  'wedding-rings':     'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=600&h=700&fit=crop',
-  'wedding-bands':     'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=600&h=700&fit=crop',
-  'eternity-rings':    'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=600&h=700&fit=crop',
-  'ladies-rings':      'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&h=700&fit=crop',
-  'gents-rings':       'https://images.unsplash.com/photo-1603974372039-adc49044b6bd?w=600&h=700&fit=crop',
-  'signet-rings':      'https://images.unsplash.com/photo-1603974372039-adc49044b6bd?w=600&h=700&fit=crop',
-  'baby-rings':        'https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?w=600&h=700&fit=crop',
-  'gold-earrings':     'https://images.unsplash.com/photo-1630938916408-b0021e8ac59a?w=600&h=700&fit=crop',
-  'silver-earrings':   'https://images.unsplash.com/photo-1630938916408-b0021e8ac59a?w=600&h=700&fit=crop',
-  'gold-pendants':     'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=700&fit=crop',
-  'silver-pendants':   'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=700&fit=crop',
-  'gold-bracelets':    'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=700&fit=crop',
-  'silver-bracelets':  'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=700&fit=crop',
-  'gold-bangles':      'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=700&fit=crop',
-  'gold-chains':       'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=600&h=700&fit=crop',
-  'silver-rings':      'https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?w=600&h=700&fit=crop',
-  'diamond-jewellery': 'https://images.unsplash.com/photo-1518049362265-d5b2a6467637?w=600&h=700&fit=crop',
-  'lab-grown-diamonds':'https://images.unsplash.com/photo-1506630448388-4e683c67ddb0?w=600&h=700&fit=crop',
-  'jewellery':         'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=700&fit=crop',
+  'engagement-rings':  'https://images.unsplash.com/photo-1586105251261-72a756497a11?w=600&h=800&fit=crop&q=85',
+  'wedding-rings':     'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=600&h=800&fit=crop&q=85',
+  'wedding-bands':     'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=600&h=800&fit=crop&q=85',
+  'eternity-rings':    'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=800&fit=crop&q=85',
+  'ladies-rings':      'https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?w=600&h=800&fit=crop&q=85',
+  'gents-rings':       'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=600&h=800&fit=crop&q=85',
+  'signet-rings':      'https://images.unsplash.com/photo-1603974372039-adc49044b6bd?w=600&h=800&fit=crop&q=85',
+  'baby-rings':        'https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?w=600&h=800&fit=crop&q=85',
+  'necklaces':         'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=800&fit=crop&q=85',
+  'gold-earrings':     'https://images.unsplash.com/photo-1630938916408-b0021e8ac59a?w=600&h=800&fit=crop&q=85',
+  'silver-earrings':   'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=600&h=800&fit=crop&q=85',
+  'earrings':          'https://images.unsplash.com/photo-1630938916408-b0021e8ac59a?w=600&h=800&fit=crop&q=85',
+  'gold-pendants':     'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=800&fit=crop&q=85',
+  'silver-pendants':   'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=600&h=800&fit=crop&q=85',
+  'pendants':          'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&h=800&fit=crop&q=85',
+  'gold-bracelets':    'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=800&fit=crop&q=85',
+  'silver-bracelets':  'https://images.unsplash.com/photo-1602173574767-37ac01994b2a?w=600&h=800&fit=crop&q=85',
+  'bracelets':         'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=800&fit=crop&q=85',
+  'gold-bangles':      'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=800&fit=crop&q=85',
+  'bangles':           'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=600&h=800&fit=crop&q=85',
+  'gold-chains':       'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=600&h=800&fit=crop&q=85',
+  'chains':            'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=600&h=800&fit=crop&q=85',
+  'silver-rings':      'https://images.unsplash.com/photo-1608042314453-ae338d682c93?w=600&h=800&fit=crop&q=85',
+  'diamond-jewellery': 'https://images.unsplash.com/photo-1518049362265-d5b2a6467637?w=600&h=800&fit=crop&q=85',
+  'jewellery':         'https://images.unsplash.com/photo-1601121141461-9d6647bef0a1?w=600&h=800&fit=crop&q=85',
+  'rings':             'https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?w=600&h=800&fit=crop&q=85',
 };
+
+const FALLBACK = 'https://images.unsplash.com/photo-1601121141461-9d6647bef0a1?w=600&h=800&fit=crop&q=85';
 
 async function fetchCategories(): Promise<Category[]> {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/categories`,
-      { next: { revalidate: 300 } }
+      { next: { revalidate: 300 } },
     );
     if (!res.ok) return [];
     return await res.json();
@@ -49,64 +54,66 @@ async function fetchCategories(): Promise<Category[]> {
 
 export default async function CategoryGrid() {
   const categories = await fetchCategories();
-
-  // Show first 8 active categories sorted by sortOrder
-  const display = categories.slice(0, 8);
-
-  // Grid layout: first 4 large, rest small — or all equal if fewer than 5
-  const large = display.slice(0, 4);
-  const small = display.slice(4);
+  const display    = categories.slice(0, 8);
 
   return (
-    <section className="py-28 bg-white">
+    <section className="py-24 bg-white overflow-hidden">
       <div className="page-container">
         <div className="text-center mb-12">
-          <p className="section-subtitle mb-3">Our Collections</p>
-          <h2 className="section-title">Shop By Category</h2>
+          <p className="section-subtitle mb-3">Our World</p>
+          <h2 className="section-title">Collections</h2>
           <div className="gold-divider mt-4" />
         </div>
+      </div>
 
-        {/* Primary 4-column row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {large.map((cat) => {
-            const img = (cat.image && !cat.image.startsWith('/images/')) ? cat.image : (CATEGORY_IMAGES[cat.slug] || FALLBACK_IMAGE);
+      {/* Horizontal scroll on mobile / 4-col grid on desktop */}
+      <div className="px-4 sm:px-6 lg:page-container">
+        <div
+          className="flex gap-4 overflow-x-auto pb-4 lg:pb-0 snap-x snap-mandatory
+                     lg:overflow-visible lg:grid lg:grid-cols-4 lg:gap-5"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {display.map((cat) => {
+            /* Always use our curated map — DB images vary in quality/domain */
+            const img = CATEGORY_IMAGES[cat.slug] || FALLBACK;
+
             return (
-              <Link key={cat._id} href={`/category/${cat.slug}`} className="group relative overflow-hidden aspect-[3/4] block">
-                <Image src={img} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-transparent to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                  <h3 className="font-serif text-xl font-light">{cat.name}</h3>
-                  <div className="h-0.5 bg-gold-400 mt-3 w-0 group-hover:w-full transition-all duration-500" />
+              <Link
+                key={cat._id}
+                href={`/category/${cat.slug}`}
+                className="block flex-shrink-0 w-56 sm:w-64 lg:w-auto snap-start group"
+              >
+                {/* Image — using plain <img> so Unsplash URLs always load */}
+                <div className="relative overflow-hidden bg-gray-100" style={{ aspectRatio: '3/4' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img}
+                    alt={cat.name}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/15 transition-colors duration-500" />
+                </div>
+
+                {/* Name strip — ivory, below image */}
+                <div className="bg-[#F5F3EE] px-3 pt-4 pb-5 text-center">
+                  <p className="font-serif text-base font-light text-charcoal tracking-wide">
+                    {cat.name}
+                  </p>
+                  <div className="h-px bg-gold-400 mt-2 mx-auto w-0 group-hover:w-8 transition-all duration-500" />
                 </div>
               </Link>
             );
           })}
         </div>
+      </div>
 
-        {/* Secondary row for extra categories */}
-        {small.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-            {small.map((cat) => {
-              const img = (cat.image && !cat.image.startsWith('/images/')) ? cat.image : (CATEGORY_IMAGES[cat.slug] || FALLBACK_IMAGE);
-              return (
-                <Link key={cat._id} href={`/category/${cat.slug}`} className="group relative overflow-hidden aspect-[4/3] block">
-                  <Image src={img} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-700" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-transparent to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                    <h3 className="font-serif text-base font-light">{cat.name}</h3>
-                    <div className="h-0.5 bg-gold-400 mt-2 w-0 group-hover:w-full transition-all duration-500" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="text-center mt-8">
-          <Link href="/products" className="btn-outline-gold text-xs tracking-widest uppercase">
-            View All Collections
-          </Link>
-        </div>
+      {/* CTA */}
+      <div className="text-center mt-10 page-container">
+        <Link href="/products" className="btn-outline-gold text-xs tracking-widest uppercase">
+          View All Collections
+        </Link>
       </div>
     </section>
   );

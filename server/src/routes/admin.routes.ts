@@ -21,6 +21,7 @@ import {
   checkNivodaStatus,
   syncAllNivodaDiamonds,
 } from '../services/nivoda.service';
+import { generateLifestylePhoto } from '../services/replicate.service';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -774,6 +775,144 @@ router.patch('/products/:id/model3d', asyncHandler(async (req: Request, res: Res
   );
   if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
   res.json({ success: true, model3dUrl: product.model3dUrl });
+}));
+
+// ─── Batch: Generate 3D models for all products without one ──────────────────
+router.post('/products/generate-3d', asyncHandler(async (req: Request, res: Response) => {
+  if (!process.env.MESHY_API_KEY) {
+    res.status(503).json({ message: 'MESHY_API_KEY not configured' }); return;
+  }
+  const MESHY_KEY = process.env.MESHY_API_KEY;
+  const limit = Math.min(Number((req.query.limit as string) || 20), 50);
+
+  const products = await Product.find({
+    model3dUrl: { $exists: false },
+    isActive: true,
+    $expr: { $gt: [{ $size: { $ifNull: ['$images', []] } }, 0] },
+  }).limit(limit).select('_id name images category');
+
+  res.json({ queued: products.length, message: `Queued ${products.length} products for 3D generation` });
+
+  // Run in background — sequentially to be gentle on the API
+  setImmediate(async () => {
+    let succeeded = 0; let failed = 0;
+    for (const p of products) {
+      try {
+        const imgUrl = p.images?.[0];
+        if (!imgUrl?.startsWith('http')) { failed++; continue; }
+        const publicUrl = await toPublicImageUrl(imgUrl).catch(() => null);
+        if (!publicUrl) { failed++; continue; }
+
+        const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${MESHY_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_url: publicUrl, ai_model: 'meshy-6' }),
+        });
+        if (!r.ok) { failed++; continue; }
+        const data = await r.json() as { result?: string; task_id?: string };
+        const taskId = data.result ?? data.task_id;
+        if (!taskId) { failed++; continue; }
+
+        // Poll this task
+        let done = false;
+        for (let attempt = 0; attempt < 30 && !done; attempt++) {
+          await new Promise(res2 => setTimeout(res2, 10_000));
+          const sr = await fetch(`https://api.meshy.ai/v1/image-to-3d/${taskId}`, {
+            headers: { Authorization: `Bearer ${MESHY_KEY}` },
+          }).catch(() => null);
+          if (!sr?.ok) continue;
+          const sd = await sr.json() as { status: string; model_urls?: { glb?: string }; thumbnail_url?: string };
+          const s = (sd.status || '').toUpperCase();
+          if (s === 'SUCCEEDED' || s === 'COMPLETE' || s === 'COMPLETED') {
+            if (sd.model_urls?.glb) {
+              await Product.findByIdAndUpdate(p._id, {
+                model3dUrl: sd.model_urls.glb,
+                ...(sd.thumbnail_url ? { model3dPreview: sd.thumbnail_url } : {}),
+              });
+              succeeded++; done = true;
+            }
+          } else if (s === 'FAILED' || s === 'ERROR') {
+            failed++; done = true;
+          }
+        }
+        if (!done) failed++;
+      } catch { failed++; }
+    }
+    console.log(`[meshy] batch done — succeeded: ${succeeded}, failed: ${failed}`);
+  });
+}));
+
+// ─── Single: Generate 3D model for one product ───────────────────────────────
+router.post('/products/:id/generate-3d', asyncHandler(async (req: Request, res: Response) => {
+  if (!process.env.MESHY_API_KEY) {
+    res.status(503).json({ message: 'MESHY_API_KEY not configured' }); return;
+  }
+  const product = await Product.findById(req.params.id);
+  if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
+  const imgUrl = product.images?.[0];
+  if (!imgUrl) { res.status(400).json({ message: 'Product has no images' }); return; }
+
+  const publicUrl = await toPublicImageUrl(imgUrl).catch(() => null);
+  if (!publicUrl) { res.status(502).json({ message: 'Could not fetch product image' }); return; }
+
+  const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image_url: publicUrl, ai_model: 'meshy-6' }),
+  });
+  if (!r.ok) { res.status(502).json({ message: 'Meshy API error' }); return; }
+  const data = await r.json() as { result?: string; task_id?: string };
+  const taskId = data.result ?? data.task_id;
+  if (!taskId) { res.status(502).json({ message: 'No task ID returned' }); return; }
+  res.json({ taskId, message: 'Generation started — model will appear on the product when ready' });
+}));
+
+// ─── Batch: Generate lifestyle photos for all products without one ────────────
+router.post('/products/generate-lifestyle', asyncHandler(async (req: Request, res: Response) => {
+  if (!process.env.REPLICATE_API_TOKEN) {
+    res.status(503).json({ message: 'REPLICATE_API_TOKEN not configured' }); return;
+  }
+  const limit = Math.min(Number((req.query.limit as string) || 20), 50);
+
+  const products = await Product.find({
+    lifestyleImageUrl: { $exists: false },
+    isActive: true,
+  }).limit(limit).select('_id name metalOptions').populate('category', 'slug');
+
+  res.json({ queued: products.length, message: `Queued ${products.length} products for lifestyle photo generation` });
+
+  setImmediate(async () => {
+    let succeeded = 0; let failed = 0;
+    for (const p of products) {
+      try {
+        const catSlug = (p.category as unknown as { slug?: string })?.slug || '';
+        const metal = p.metalOptions?.find(m => m.isDefault)?.type || p.metalOptions?.[0]?.type;
+        const url = await generateLifestylePhoto(p.name, catSlug, metal);
+        if (url) {
+          await Product.findByIdAndUpdate(p._id, { lifestyleImageUrl: url });
+          succeeded++;
+        } else { failed++; }
+      } catch { failed++; }
+    }
+    console.log(`[replicate] batch done — succeeded: ${succeeded}, failed: ${failed}`);
+  });
+}));
+
+// ─── Single: Generate lifestyle photo for one product ────────────────────────
+router.post('/products/:id/generate-lifestyle', asyncHandler(async (req: Request, res: Response) => {
+  if (!process.env.REPLICATE_API_TOKEN) {
+    res.status(503).json({ message: 'REPLICATE_API_TOKEN not configured' }); return;
+  }
+  const product = await Product.findById(req.params.id).populate('category', 'slug');
+  if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
+
+  const catSlug = (product.category as unknown as { slug?: string })?.slug || '';
+  const metal = product.metalOptions?.find(m => m.isDefault)?.type || product.metalOptions?.[0]?.type;
+  const url = await generateLifestylePhoto(product.name, catSlug, metal);
+
+  if (!url) { res.status(502).json({ message: 'Lifestyle photo generation failed' }); return; }
+  await Product.findByIdAndUpdate(product._id, { lifestyleImageUrl: url });
+  res.json({ lifestyleImageUrl: url });
 }));
 
 // ─── Sample Excel Template Download ──────────────────────────────────────────

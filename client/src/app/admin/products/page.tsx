@@ -4,16 +4,37 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
-import { Plus, Search, Edit2, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Eye, ChevronLeft, ChevronRight, Box, Camera, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 export default function AdminProductsPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [gen3dLoading,       setGen3dLoading]       = useState(false);
+  const [genLifestyleLoading, setGenLifestyleLoading] = useState(false);
+
+  async function handleGenerate3D() {
+    setGen3dLoading(true);
+    try {
+      const res = await adminApi.generate3DBatch(20);
+      toast.success(res.data?.message || '3D generation queued!');
+    } catch { toast.error('Failed to start 3D generation'); }
+    finally { setGen3dLoading(false); }
+  }
+
+  async function handleGenerateLifestyle() {
+    setGenLifestyleLoading(true);
+    try {
+      const res = await adminApi.generateLifestyleBatch(20);
+      toast.success(res.data?.message || 'Lifestyle photos queued!');
+    } catch { toast.error('Failed to start lifestyle generation'); }
+    finally { setGenLifestyleLoading(false); }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', page, search],
@@ -37,14 +58,34 @@ export default function AdminProductsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-sm text-gray-500">{total} total products</p>
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+            <p className="text-sm text-gray-500">{total} total products</p>
+          </div>
+          <Link href="/admin/products/new" className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+            <Plus size={16} /> Add Product
+          </Link>
         </div>
-        <Link href="/admin/products/new" className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-          <Plus size={16} /> Add Product
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleGenerate3D}
+            disabled={gen3dLoading}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            {gen3dLoading ? <Loader2 size={15} className="animate-spin" /> : <Box size={15} />}
+            Generate 3D Models
+          </button>
+          <button
+            onClick={handleGenerateLifestyle}
+            disabled={genLifestyleLoading}
+            className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            {genLifestyleLoading ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+            Generate Lifestyle Photos
+          </button>
+        </div>
       </div>
 
       {/* Search */}

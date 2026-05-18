@@ -5,7 +5,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { adminApi, categoriesApi, goldPriceApi } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, X, Sparkles, Loader2, Wand2, Box, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, X, Sparkles, Loader2, Wand2, Box, RefreshCw, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface WeightBySize { size: string; weightGrams: number; }
@@ -67,6 +67,11 @@ export default function ProductForm({ productId }: { productId?: string }) {
   const [gen3DStatus, setGen3DStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
   const [gen3DModelUrl, setGen3DModelUrl] = useState('');
   const [gen3DPreviewUrl, setGen3DPreviewUrl] = useState('');
+
+  // ── Lifestyle Photo state ─────────────────────────────────────────────────
+  const [genLifestyleLoading, setGenLifestyleLoading] = useState(false);
+  const [genLifestyleStatus, setGenLifestyleStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
+  const [genLifestyleUrl, setGenLifestyleUrl] = useState('');
 
   const { data: catData } = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.getAll() });
   const categories = catData?.data || [];
@@ -316,6 +321,26 @@ export default function ProductForm({ productId }: { productId?: string }) {
       toast.error(msg);
       setGen3DLoading(false);
       setGen3DStatus('idle');
+    }
+  };
+
+  // ── AI: Generate lifestyle photo via Replicate ───────────────────────────
+  const handleGenerateLifestyle = async () => {
+    if (!productId) { toast.error('Save the product first, then generate a lifestyle photo'); return; }
+    setGenLifestyleLoading(true);
+    setGenLifestyleStatus('processing');
+    try {
+      const res = await adminApi.generateLifestyleSingle(productId);
+      const { lifestyleImageUrl } = res.data as { lifestyleImageUrl: string };
+      setGenLifestyleUrl(lifestyleImageUrl);
+      setGenLifestyleStatus('completed');
+      toast.success('Lifestyle photo generated and saved!');
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Lifestyle generation failed';
+      toast.error(msg);
+      setGenLifestyleStatus('failed');
+    } finally {
+      setGenLifestyleLoading(false);
     }
   };
 
@@ -803,6 +828,64 @@ export default function ProductForm({ productId }: { productId?: string }) {
                 <p>• Use the first product image URL as the base (front view recommended)</p>
                 <p>• For best results use a clean studio photo on a white background</p>
                 <p>• Requires <code className="bg-gray-100 px-1 rounded">MESHY_API_KEY</code> in server/.env — free tier available at meshy.ai</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Lifestyle Photo Generator ── */}
+        {isEdit && (
+          <section className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Camera size={16} className="text-pink-500" />
+                  Lifestyle Photo
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  AI-generate a "worn" lifestyle image — ring on finger, necklace on neck, etc.
+                  Shown as a "Styled On" section on the product page.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleGenerateLifestyle}
+                disabled={genLifestyleLoading}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg hover:opacity-90 disabled:opacity-60 transition-opacity whitespace-nowrap"
+              >
+                {genLifestyleLoading
+                  ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
+                  : genLifestyleStatus === 'completed'
+                  ? <><RefreshCw size={14} /> Regenerate Photo</>
+                  : <><Camera size={14} /> Generate Lifestyle Photo</>}
+              </button>
+            </div>
+
+            {genLifestyleStatus === 'completed' && genLifestyleUrl && (
+              <div className="flex items-start gap-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={genLifestyleUrl} alt="Lifestyle preview" className="w-24 h-24 object-cover rounded border border-pink-300" />
+                <div>
+                  <p className="text-sm font-medium text-pink-800">Lifestyle photo generated and saved ✓</p>
+                  <p className="text-xs text-pink-600 mt-0.5 break-all">{genLifestyleUrl}</p>
+                  <a href={genLifestyleUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                    View full image ↗
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {genLifestyleStatus === 'failed' && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
+                Lifestyle generation failed. Check that <code className="bg-red-100 px-1 rounded">REPLICATE_API_TOKEN</code> is set in server/.env.
+              </p>
+            )}
+
+            {genLifestyleStatus === 'idle' && (
+              <div className="text-xs text-gray-400 space-y-1">
+                <p>• Generates a photorealistic AI image of the jewellery being worn</p>
+                <p>• Category-aware: rings → on finger, earrings → on ear, necklaces → on neck</p>
+                <p>• Requires <code className="bg-gray-100 px-1 rounded">REPLICATE_API_TOKEN</code> in server/.env</p>
               </div>
             )}
           </section>

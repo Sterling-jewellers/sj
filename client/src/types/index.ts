@@ -83,6 +83,7 @@ export interface IProduct {
   aiGenerated?: boolean;
   model3dUrl?: string;
   model3dPreview?: string;
+  lifestyleImageUrl?: string;
   metaTitle?: string;
   metaDescription?: string;
   sourceUrl?: string;

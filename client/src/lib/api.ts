@@ -131,6 +131,12 @@ export const adminApi = {
   check3DStatus: (taskId: string) => api.get(`/admin/ai/3d-status/${taskId}`),
   saveModel3D: (productId: string, data: { model3dUrl: string; model3dPreview?: string }) =>
     api.patch(`/admin/products/${productId}/model3d`, data),
+  generate3DBatch: (limit?: number) => api.post('/admin/products/generate-3d', {}, { params: limit ? { limit } : {} }),
+  generate3DSingle: (id: string) => api.post(`/admin/products/${id}/generate-3d`),
+
+  // Lifestyle photos (Replicate)
+  generateLifestyleBatch: (limit?: number) => api.post('/admin/products/generate-lifestyle', {}, { params: limit ? { limit } : {} }),
+  generateLifestyleSingle: (id: string) => api.post(`/admin/products/${id}/generate-lifestyle`),
 
   // Hanron Jewellery scraper
   hanronStatus: () => api.get('/admin/hanron/status'),

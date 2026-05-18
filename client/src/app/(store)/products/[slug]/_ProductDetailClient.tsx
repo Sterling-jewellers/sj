@@ -914,7 +914,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               <div className="flex gap-3 mb-5">
                 <button onClick={handleAddToCart} className="flex-1 bg-charcoal hover:bg-gold-600 text-white py-4 font-sans font-medium text-sm tracking-widest uppercase transition-colors flex items-center justify-center gap-2">
                   <ShoppingBag size={16} />
-                  {selectedDiamond ? `Add Ring + Diamond — ${formatPrice(finalPrice)}` : 'Customise & Buy'}
+                  {selectedDiamond ? `Buy Now — ${formatPrice(finalPrice)}` : 'Buy Now'}
                 </button>
                 <button
                   onClick={() => { toggleItem(product); toast(isWishlisted(product._id) ? 'Removed from wishlist' : 'Saved to wishlist', { icon: '❤️' }); }}
@@ -1018,6 +1018,29 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             )}
           </div>
         </div>
+
+        {/* ── Styled On ── */}
+        {product.lifestyleImageUrl && (
+          <section className="mt-8 pt-12 border-t border-gray-200">
+            <div className="text-center mb-8">
+              <p className="section-subtitle mb-2">Worn in Real Life</p>
+              <h2 className="section-title">See How It Looks</h2>
+              <div className="gold-divider mt-3" />
+            </div>
+            <div className="max-w-lg mx-auto relative aspect-[3/4] overflow-hidden">
+              <Image
+                src={product.lifestyleImageUrl}
+                alt={`${product.name} lifestyle photo`}
+                fill
+                className="object-cover"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-charcoal/60 to-transparent p-6">
+                <p className="font-serif text-white text-lg font-light">{product.name}</p>
+                <p className="text-xs font-sans text-gold-300 tracking-widest uppercase mt-1">AI-styled visualisation</p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ── Related ── */}
         {related.length > 0 && (
