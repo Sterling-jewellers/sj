@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { RING_BUILDER_ENABLED } from '@/lib/features';
+import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
 
 // ── SVG Illustrations (inline, brand-accurate, no external images) ────────────
 
@@ -220,8 +220,10 @@ const slides = [
     subtitle: 'Discover our handcrafted engagement rings, each one a symbol of your unique love story.',
     cta:  { label: 'Shop Engagement Rings', href: '/category/engagement-rings' },
     cta2: RING_BUILDER_ENABLED
-      ? { label: 'Build Your Ring', href: '/custom-ring' }
-      : { label: 'Search Diamonds', href: '/diamonds' },
+      ? { label: 'Build Your Ring',      href: '/custom-ring'           }
+      : DIAMONDS_ENABLED
+        ? { label: 'Search Diamonds',    href: '/diamonds'              }
+        : { label: 'Shop Fine Jewellery', href: '/category/jewellery'   },
     align: 'left',
     Illustration: RingIllustration,
   },
@@ -230,9 +232,13 @@ const slides = [
     bg: 'from-[#080808] via-[#0F0F0F] to-[#181818]',
     tag: 'Ethically Sourced',
     title: 'Eternal\nBeauty',
-    subtitle: 'GIA & IGI certified diamonds set in platinum and 18ct gold. Crafted to last a lifetime.',
-    cta:  { label: 'Explore Diamonds',   href: '/diamonds' },
-    cta2: { label: 'Diamond Education',  href: '/diamond-education' },
+    subtitle: DIAMONDS_ENABLED
+      ? 'GIA & IGI certified diamonds set in platinum and 18ct gold. Crafted to last a lifetime.'
+      : 'Exquisite fine jewellery in 9ct and 18ct gold, crafted to last a lifetime.',
+    cta:  DIAMONDS_ENABLED
+      ? { label: 'Explore Diamonds',    href: '/diamonds'           }
+      : { label: 'Shop Gold Jewellery', href: '/category/jewellery' },
+    cta2: { label: 'Diamond Education', href: '/diamond-education'  },
     align: 'center',
     Illustration: DiamondIllustration,
   },

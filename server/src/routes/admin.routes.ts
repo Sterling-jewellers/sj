@@ -640,6 +640,55 @@ async function toPublicImageUrl(imageUrl: string): Promise<string> {
   return result.secure_url;
 }
 
+// Upload a Hanron product image to Cloudinary so it can be served from CDN in production.
+// Hanron's website is behind Cloudflare which blocks datacenter IPs (Render/Netlify image
+// optimiser). By re-hosting on Cloudinary during the sync (which always runs from localhost)
+// the production site never needs to contact hanronjewellery.com.
+// Returns the Cloudinary URL on success, or the original URL as a fallback.
+async function uploadHanronImageToCloudinary(imageUrl: string): Promise<string> {
+  if (!imageUrl || !imageUrl.startsWith('http')) return imageUrl;
+  if (imageUrl.includes('res.cloudinary.com'))   return imageUrl; // already uploaded
+
+  const hasCredentials =
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY    &&
+    process.env.CLOUDINARY_API_SECRET;
+  if (!hasCredentials) return imageUrl; // no Cloudinary config — keep original
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+
+  try {
+    const resp = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept':     'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'Referer':    'https://hanronjewellery.com/',
+      },
+    });
+    if (!resp.ok) {
+      console.warn(`[Hanron] ⚠️  Could not fetch image (${resp.status}): ${imageUrl}`);
+      return imageUrl;
+    }
+
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: 'sterling-jewellers/hanron', resource_type: 'image' },
+        (err, res) => (err ? reject(err) : resolve(res as { secure_url: string })),
+      );
+      stream.end(buffer);
+    });
+    return result.secure_url;
+  } catch (err) {
+    console.warn(`[Hanron] ⚠️  Cloudinary upload failed for ${imageUrl}: ${(err as Error).message}`);
+    return imageUrl; // non-fatal — keep original URL
+  }
+}
+
 // ─── AI: Start 3D Model Generation (Meshy.ai image-to-3d) ────────────────────
 router.post('/ai/generate-3d', asyncHandler(async (req: Request, res: Response) => {
   const { imageUrl } = req.body as { imageUrl: string };
@@ -858,6 +907,12 @@ router.post('/hanron/sync', asyncHandler(async (req: Request, res: Response) => 
         continue;
       }
 
+      // ── Upload image to Cloudinary (so production CDN never hits Hanron's CF) ──
+      const rawImageUrl = p.images[0] || '';
+      const hostedImage = rawImageUrl
+        ? await uploadHanronImageToCloudinary(rawImageUrl)
+        : '';
+
       // ── SEO fields ────────────────────────────────────────────────────────────
       const metalLabel  = p.metal.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       const catLabel    = HANRON_CAT_MAP[p.category]?.name || p.category;
@@ -918,11 +973,11 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
         metaTitle,
         metaDescription,
         basePrice,
-        images:           p.images.length ? p.images : ['/images/placeholder.jpg'],
+        images:           hostedImage ? [hostedImage] : ['/images/placeholder.jpg'],
         metalOptions: [{
           type:          metalTypeEnum,
           karat:         karatEnum,
-          images:        p.images.length ? p.images : ['/images/placeholder.jpg'],
+          images:        hostedImage ? [hostedImage] : ['/images/placeholder.jpg'],
           isDefault:     true,
           priceModifier: 0,
         }],
@@ -1066,6 +1121,59 @@ router.post('/hanron/invalidate', (_req: Request, res: Response) => {
   invalidateHanronSession();
   res.json({ success: true, message: 'Hanron session cleared — next request will re-authenticate' });
 });
+
+// POST /api/admin/hanron/fix-images
+// Re-uploads all Hanron product images that are still on hanronjewellery.com to Cloudinary.
+// Run this once from localhost after a sync to fix images on existing products.
+// On production this returns 503 (same Cloudflare restriction as the sync).
+router.post('/hanron/fix-images', asyncHandler(async (_req: Request, res: Response) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(503).json({
+      success: false,
+      message: 'Hanron image fix must be run from localhost — Cloudflare blocks datacenter IPs.',
+      fix: 'Run from your local machine: POST http://localhost:5001/api/admin/hanron/fix-images',
+    });
+    return;
+  }
+
+  // Find all Hanron products whose images are still on hanronjewellery.com
+  const products = await Product.find({
+    source: 'hanron',
+    $or: [
+      { 'images.0': /hanronjewellery\.com/ },
+      { 'metalOptions.0.images.0': /hanronjewellery\.com/ },
+    ],
+  }).select('_id name images metalOptions').lean();
+
+  console.log(`[Hanron fix-images] ${products.length} products need image migration`);
+
+  let fixed = 0, failed = 0;
+  for (const product of products) {
+    try {
+      const rawUrl = (product.images as string[])?.[0] || '';
+      if (!rawUrl || rawUrl.includes('res.cloudinary.com')) continue;
+
+      const cloudUrl = await uploadHanronImageToCloudinary(rawUrl);
+      if (cloudUrl === rawUrl) { failed++; continue; } // upload failed — kept original
+
+      // Update both top-level images array and every metalOption's images array
+      await Product.findByIdAndUpdate(product._id, {
+        $set: {
+          images: [cloudUrl],
+          'metalOptions.$[].images': [cloudUrl],
+        },
+      });
+      fixed++;
+      if (fixed % 20 === 0) console.log(`[Hanron fix-images] ${fixed}/${products.length} fixed…`);
+    } catch (err) {
+      failed++;
+      console.warn(`[Hanron fix-images] ⚠️  ${(err as Error).message}`);
+    }
+  }
+
+  console.log(`[Hanron fix-images] ✅ Done — ${fixed} fixed, ${failed} failed`);
+  res.json({ success: true, total: products.length, fixed, failed });
+}));
 
 // ─── Nivoda Diamond Integration ──────────────────────────────────────────────
 

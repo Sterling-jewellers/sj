@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
 import {
   RefreshCw, CheckCircle2, XCircle, AlertCircle, Loader2,
-  Globe, Download, Database, Eye, ChevronDown, ChevronUp, Package, FolderPlus,
+  Globe, Download, Database, Eye, ChevronDown, ChevronUp, Package, FolderPlus, ImageIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -42,6 +42,13 @@ interface SyncResult {
   preview?: PreviewProduct[];
 }
 
+interface FixImagesResult {
+  success: boolean;
+  total: number;
+  fixed: number;
+  failed: number;
+}
+
 export default function HanronPage() {
   const [status, setStatus]           = useState<StatusResult | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -54,6 +61,8 @@ export default function HanronPage() {
   const [syncResult, setSyncResult]     = useState<SyncResult | null>(null);
   const [showErrors, setShowErrors]     = useState(false);
   const [showPreview, setShowPreview]   = useState(false);
+  const [fixingImages, setFixingImages] = useState(false);
+  const [fixImagesResult, setFixImagesResult] = useState<FixImagesResult | null>(null);
 
   const checkStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -118,6 +127,24 @@ export default function HanronPage() {
     checkStatus();
   };
 
+  const handleFixImages = async () => {
+    setFixingImages(true);
+    setFixImagesResult(null);
+    try {
+      const res = await adminApi.hanronFixImages();
+      const d = res.data as FixImagesResult;
+      setFixImagesResult(d);
+      toast.success(`Images fixed: ${d.fixed} uploaded to Cloudinary${d.failed ? `, ${d.failed} failed` : ''}`);
+    } catch (err: unknown) {
+      const errData = (err as { response?: { data?: { message?: string; fix?: string } } })?.response?.data;
+      const msg = errData?.message || 'Image fix failed';
+      const fix = errData?.fix;
+      toast.error(fix ? `${msg}\n${fix}` : msg, { duration: 8000 });
+    } finally {
+      setFixingImages(false);
+    }
+  };
+
   const statusColour = !status ? 'text-gray-400'
     : status.status === 'ok'             ? 'text-emerald-600'
     : status.status === 'not_configured' ? 'text-amber-500'
@@ -144,14 +171,17 @@ export default function HanronPage() {
               Hanron&apos;s website uses Cloudflare, which blocks requests from cloud servers like Render.
               Your local machine has a residential IP that Cloudflare allows through.
             </p>
-            <div className="mt-3 bg-amber-100 rounded-lg p-3 font-mono text-xs text-amber-900">
-              <p className="font-semibold mb-1">Run this from your computer:</p>
-              <p>1. Make sure your local server is running: <code>npm run dev:server</code></p>
-              <p className="mt-1">2. Then trigger the sync:</p>
-              <p className="mt-1 select-all">curl -X POST http://localhost:5001/api/admin/hanron/sync \</p>
+            <div className="mt-3 bg-amber-100 rounded-lg p-3 font-mono text-xs text-amber-900 space-y-2">
+              <p className="font-semibold">Run these from your computer:</p>
+              <p>1. Start local server: <code>npm run dev:server</code></p>
+              <p className="font-semibold mt-1">2. Sync products:</p>
+              <p className="select-all">curl -X POST http://localhost:5001/api/admin/hanron/sync \</p>
               <p className="select-all ml-4">-H &quot;Authorization: Bearer YOUR_ADMIN_TOKEN&quot; \</p>
               <p className="select-all ml-4">-H &quot;Content-Type: application/json&quot; \</p>
               <p className="select-all ml-4">-d &apos;&#123;&quot;saveToDb&quot;: true&#125;&apos;</p>
+              <p className="font-semibold mt-1">3. Upload images to Cloudinary (fixes blank images on live site):</p>
+              <p className="select-all">curl -X POST http://localhost:5001/api/admin/hanron/fix-images \</p>
+              <p className="select-all ml-4">-H &quot;Authorization: Bearer YOUR_ADMIN_TOKEN&quot;</p>
             </div>
           </div>
         </div>
@@ -274,6 +304,36 @@ export default function HanronPage() {
             {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : saveToDb ? <Database className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             {syncing ? 'Syncing…' : saveToDb ? 'Sync & Save to Database' : 'Dry Run (Preview Only)'}
           </button>
+        </div>
+      </div>
+
+      {/* Fix Images card */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700">Fix Product Images</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Re-uploads all Hanron product images from <code className="bg-gray-100 px-1 rounded">hanronjewellery.com</code> to{' '}
+            Cloudinary so they load correctly on the live site. Run this once from your local machine after each sync.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleFixImages}
+            disabled={fixingImages}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {fixingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+            {fixingImages ? 'Uploading images…' : 'Upload Images to Cloudinary'}
+          </button>
+          {fixImagesResult && (
+            <div className="flex gap-3 text-sm">
+              <span className="text-emerald-700 font-semibold">{fixImagesResult.fixed} uploaded</span>
+              {fixImagesResult.failed > 0 && (
+                <span className="text-red-500 font-semibold">{fixImagesResult.failed} failed</span>
+              )}
+              <span className="text-gray-400">of {fixImagesResult.total} total</span>
+            </div>
+          )}
         </div>
       </div>
 

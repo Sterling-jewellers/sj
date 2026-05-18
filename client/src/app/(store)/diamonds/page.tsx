@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { diamondsApi } from '@/lib/api';
 import { IDiamond } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import Link from 'next/link';
 import { RING_BUILDER_ENABLED } from '@/lib/features';
 import Image from 'next/image';
-import { LayoutGrid, List, Search, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { LayoutGrid, List, Search, RotateCcw, ChevronDown, ChevronUp, Gem, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-// Shape-specific diamond photos — same as seeder so fallback looks consistent
-const REAL_DIAMOND_PHOTOS: Record<string, string> = {
+
+// Shape-specific diamond photos — fallback per shape for Nivoda diamonds without imageUrl
+const DIAMOND_PHOTOS: Record<string, string> = {
   round:    'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&h=600&fit=crop&q=90',
   oval:     'https://images.unsplash.com/photo-1602173574767-37ac01994b2a?w=600&h=600&fit=crop&q=90',
   princess: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=600&h=600&fit=crop&q=90',
@@ -22,24 +24,6 @@ const REAL_DIAMOND_PHOTOS: Record<string, string> = {
   asscher:  'https://images.unsplash.com/photo-1567748157439-651aca2ff064?w=600&h=600&fit=crop&q=90',
   marquise: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&h=600&fit=crop&q=90',
   heart:    'https://images.unsplash.com/photo-1602173574767-37ac01994b2a?w=600&h=600&fit=crop&q=90',
-};
-
-// ─── Shape SVG icons ──────────────────────────────────────────────────────────
-const ShapeIcon = ({ shape, size = 28 }: { shape: string; size?: number }) => {
-  const s = size, c = s / 2;
-  const icons: Record<string, React.ReactNode> = {
-    round:    <circle cx={c} cy={c} r={c * 0.82} stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    princess: <rect x={s*.12} y={s*.12} width={s*.76} height={s*.76} stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    oval:     <ellipse cx={c} cy={c} rx={c*.6} ry={c*.83} stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    cushion:  <rect x={s*.12} y={s*.12} width={s*.76} height={s*.76} rx="5" stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    emerald:  <rect x={s*.12} y={s*.2} width={s*.76} height={s*.6} rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    pear:     <path d={`M${c},${s*.88} C${s*.08},${s*.7} ${s*.08},${s*.35} ${c},${s*.12} C${s*.92},${s*.35} ${s*.92},${s*.7} ${c},${s*.88}Z`} stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    marquise: <ellipse cx={c} cy={c} rx={c*.85} ry={c*.4} stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    radiant:  <rect x={s*.14} y={s*.18} width={s*.72} height={s*.64} rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />,
-    asscher:  <><rect x={s*.14} y={s*.14} width={s*.72} height={s*.72} stroke="currentColor" strokeWidth="1.5" fill="none" /><rect x={s*.25} y={s*.25} width={s*.5} height={s*.5} stroke="currentColor" strokeWidth=".7" fill="none" /></>,
-    heart:    <path d={`M${c},${s*.82} L${s*.1},${s*.38} A${s*.23},${s*.23},0,0,1,${c},${s*.32} A${s*.23},${s*.23},0,0,1,${s*.9},${s*.38}Z`} stroke="currentColor" strokeWidth="1.5" fill="none" />,
-  };
-  return <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} className="shrink-0">{icons[shape.toLowerCase()] ?? icons['round']}</svg>;
 };
 
 // ─── Dual-handle range slider ─────────────────────────────────────────────────
@@ -91,10 +75,9 @@ function FilterBlock({ title, children }: { title: string; children: React.React
 function DiamondCard({ d }: { d: IDiamond }) {
   return (
     <div className="bg-white border border-gray-100 group hover:shadow-lg transition-all duration-200 flex flex-col">
-      {/* Real diamond photo */}
       <div className="relative aspect-square overflow-hidden bg-gray-900 group-hover:brightness-105 transition-all">
         <Image
-          src={d.imageUrl || REAL_DIAMOND_PHOTOS[d.shape?.toLowerCase()] || REAL_DIAMOND_PHOTOS.round}
+          src={d.imageUrl || DIAMOND_PHOTOS[d.shape?.toLowerCase()] || DIAMOND_PHOTOS.round}
           alt={`${d.caratWeight}ct ${d.shape} diamond`}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -107,10 +90,14 @@ function DiamondCard({ d }: { d: IDiamond }) {
             {d.certificate.lab}
           </div>
         )}
+        {d.isLabGrown && (
+          <div className="absolute top-2 right-2 text-[9px] font-sans font-bold px-1.5 py-0.5 bg-emerald-500/90 text-white">
+            Lab
+          </div>
+        )}
       </div>
 
       <div className="p-3 border-t border-gray-50 flex-1 flex flex-col">
-        {/* Cert badge */}
         <div className="flex items-center justify-between mb-2">
           {d.certificate?.lab && (
             <span className={cn('text-[9px] font-sans font-bold px-1.5 py-0.5 rounded',
@@ -119,7 +106,7 @@ function DiamondCard({ d }: { d: IDiamond }) {
               {d.certificate.lab}
             </span>
           )}
-          <span className="text-[9px] font-sans text-gray-400 capitalize">{d.shape}</span>
+          <span className="text-[9px] font-sans text-gray-400 capitalize ml-auto">{d.shape}</span>
         </div>
 
         <p className="font-serif text-base font-light text-charcoal">{formatPrice(d.price)}</p>
@@ -145,10 +132,9 @@ function DiamondRow({ d, i }: { d: IDiamond; i: number }) {
   return (
     <div className={cn('grid items-center px-4 py-3 gap-3 text-sm font-sans hover:bg-champagne/40 transition-colors', i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60')}
       style={{ gridTemplateColumns: '56px 1fr 72px 80px 64px 80px 96px 96px' }}>
-      {/* Real diamond photo */}
       <div className="w-14 h-14 relative overflow-hidden bg-gray-900 shrink-0">
         <Image
-          src={d.imageUrl || REAL_DIAMOND_PHOTOS[d.shape?.toLowerCase()] || REAL_DIAMOND_PHOTOS.round}
+          src={d.imageUrl || DIAMOND_PHOTOS[d.shape?.toLowerCase()] || DIAMOND_PHOTOS.round}
           alt=""
           fill
           className="object-cover"
@@ -175,8 +161,27 @@ function DiamondRow({ d, i }: { d: IDiamond; i: number }) {
   );
 }
 
-// ─── Filter constants ─────────────────────────────────────────────────────────
+// ─── Shape SVG icons ──────────────────────────────────────────────────────────
+const ShapeIcon = ({ shape, size = 28 }: { shape: string; size?: number }) => {
+  const s = size, c = s / 2;
+  const icons: Record<string, React.ReactNode> = {
+    round:    <circle cx={c} cy={c} r={c * 0.82} stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    princess: <rect x={s*.12} y={s*.12} width={s*.76} height={s*.76} stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    oval:     <ellipse cx={c} cy={c} rx={c*.6} ry={c*.83} stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    cushion:  <rect x={s*.12} y={s*.12} width={s*.76} height={s*.76} rx="5" stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    emerald:  <rect x={s*.12} y={s*.2} width={s*.76} height={s*.6} rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    pear:     <path d={`M${c},${s*.88} C${s*.08},${s*.7} ${s*.08},${s*.35} ${c},${s*.12} C${s*.92},${s*.35} ${s*.92},${s*.7} ${c},${s*.88}Z`} stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    marquise: <ellipse cx={c} cy={c} rx={c*.85} ry={c*.4} stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    radiant:  <rect x={s*.14} y={s*.18} width={s*.72} height={s*.64} rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />,
+    asscher:  <><rect x={s*.14} y={s*.14} width={s*.72} height={s*.72} stroke="currentColor" strokeWidth="1.5" fill="none" /><rect x={s*.25} y={s*.25} width={s*.5} height={s*.5} stroke="currentColor" strokeWidth=".7" fill="none" /></>,
+    heart:    <path d={`M${c},${s*.82} L${s*.1},${s*.38} A${s*.23},${s*.23},0,0,1,${c},${s*.32} A${s*.23},${s*.23},0,0,1,${s*.9},${s*.38}Z`} stroke="currentColor" strokeWidth="1.5" fill="none" />,
+  };
+  return <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} className="shrink-0">{icons[shape.toLowerCase()] ?? icons['round']}</svg>;
+};
+
 const SHAPES   = ['round','princess','oval','cushion','emerald','pear','marquise','radiant','asscher','heart'];
+
+// ─── Filter constants ─────────────────────────────────────────────────────────
 const COLOURS  = ['D','E','F','G','H','I','J','K'];
 const CLARITY  = ['FL','IF','VVS1','VVS2','VS1','VS2','SI1','SI2'];
 const CUTS     = ['Excellent','Very Good','Good'];
@@ -184,8 +189,31 @@ const LABS     = ['GIA','IGI'];
 const D_CARAT: [number,number] = [0.20, 2.00];
 const D_PRICE: [number,number] = [100, 50000];
 
-export default function DiamondSearchPage() {
-  const [stoneType, setStoneType] = useState<'natural'|'lab'>('natural');
+// ─── Inner page (reads search params) ────────────────────────────────────────
+function DiamondSearchInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Read ?type=lab or ?type=natural from URL — default to natural
+  const urlType = searchParams?.get('type');
+  const [stoneType, setStoneType] = useState<'natural'|'lab'>(
+    urlType === 'lab' ? 'lab' : 'natural'
+  );
+
+  // Sync URL → state whenever the URL changes (e.g. clicking nav links)
+  useEffect(() => {
+    if (urlType === 'lab') setStoneType('lab');
+    else                   setStoneType('natural');
+  }, [urlType]);
+
+  // Update URL when stone type changes via tab click
+  const switchType = (type: 'natural' | 'lab') => {
+    setStoneType(type);
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('type', type);
+    router.replace(`/diamonds?${params.toString()}`, { scroll: false });
+  };
+
   const [shapes,    setShapes]    = useState<string[]>([]);
   const [colours,   setColours]   = useState<string[]>([]);
   const [clarities, setClarities] = useState<string[]>([]);
@@ -204,11 +232,14 @@ export default function DiamondSearchPage() {
   const hasFilters = shapes.length || colours.length || clarities.length || cuts.length || labs.length || search ||
     carat[0] !== D_CARAT[0] || carat[1] !== D_CARAT[1] || priceR[0] !== D_PRICE[0] || priceR[1] !== D_PRICE[1];
 
-  const reset = () => { setShapes([]); setColours([]); setClarities([]); setCuts([]); setLabs([]);
-    setCarat(D_CARAT); setPriceR(D_PRICE); setSearch(''); };
+  const reset = () => {
+    setShapes([]); setColours([]); setClarities([]); setCuts([]); setLabs([]);
+    setCarat(D_CARAT); setPriceR(D_PRICE); setSearch('');
+  };
 
-  const params: Record<string,string|number> = {
-    limit: 60, sort,
+  const params: Record<string, string|number> = {
+    limit:    200,
+    sort,
     labGrown: stoneType === 'lab' ? 'true' : 'false',
     minCarat: carat[0], maxCarat: carat[1],
     minPrice: priceR[0], maxPrice: priceR[1],
@@ -219,7 +250,11 @@ export default function DiamondSearchPage() {
     ...(labs[0]      ? { lab:     labs[0]      } : {}),
   };
 
-  const { data, isLoading } = useQuery({ queryKey: ['diamonds', params], queryFn: () => diamondsApi.getAll(params) });
+  const { data, isLoading } = useQuery({
+    queryKey: ['diamonds', params],
+    queryFn:  () => diamondsApi.getAll(params),
+    staleTime: 5 * 60_000,
+  });
 
   let diamonds: IDiamond[] = data?.data?.diamonds || [];
   if (shapes.length > 1)    diamonds = diamonds.filter(d => shapes.includes(d.shape?.toLowerCase()));
@@ -227,10 +262,19 @@ export default function DiamondSearchPage() {
   if (clarities.length > 1) diamonds = diamonds.filter(d => clarities.includes(d.clarity));
   if (cuts.length > 1)      diamonds = diamonds.filter(d => cuts.some(c => c.toLowerCase() === d.cut?.toLowerCase()));
   if (labs.length > 1)      diamonds = diamonds.filter(d => labs.includes(d.certificate?.lab?.toUpperCase() ?? ''));
-  if (search) { const q = search.toLowerCase(); diamonds = diamonds.filter(d => d.sku?.toLowerCase().includes(q) || d.certificate?.number?.toLowerCase().includes(q)); }
+  if (search) {
+    const q = search.toLowerCase();
+    diamonds = diamonds.filter(d =>
+      d.sku?.toLowerCase().includes(q) ||
+      d.certificate?.number?.toLowerCase().includes(q) ||
+      d.shape?.toLowerCase().includes(q)
+    );
+  }
 
   return (
     <div className="bg-ivory min-h-screen">
+
+      {/* ── Hero banner ── */}
       <div className="bg-charcoal py-8">
         <div className="page-container text-center">
           <p className="section-subtitle text-gold-400 mb-2">GIA &amp; IGI Certified</p>
@@ -239,22 +283,54 @@ export default function DiamondSearchPage() {
         </div>
       </div>
 
+      {/* ── Stone type toggle — full width, prominent ── */}
+      <div className="bg-white border-b border-gray-200 sticky top-[64px] z-30">
+        <div className="page-container">
+          <div className="flex">
+            <button
+              onClick={() => switchType('natural')}
+              className={cn(
+                'flex items-center gap-2.5 px-8 py-4 text-sm font-sans font-medium transition-all border-b-2',
+                stoneType === 'natural'
+                  ? 'border-amber-500 text-charcoal bg-champagne/40'
+                  : 'border-transparent text-gray-500 hover:text-charcoal hover:bg-gray-50'
+              )}
+            >
+              <Gem size={16} className={stoneType === 'natural' ? 'text-amber-500' : 'text-gray-400'} />
+              Natural Diamonds
+              {!isLoading && stoneType === 'natural' && (
+                <span className="ml-1 text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                  {diamonds.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => switchType('lab')}
+              className={cn(
+                'flex items-center gap-2.5 px-8 py-4 text-sm font-sans font-medium transition-all border-b-2',
+                stoneType === 'lab'
+                  ? 'border-emerald-500 text-charcoal bg-emerald-50/60'
+                  : 'border-transparent text-gray-500 hover:text-charcoal hover:bg-gray-50'
+              )}
+            >
+              <FlaskConical size={16} className={stoneType === 'lab' ? 'text-emerald-500' : 'text-gray-400'} />
+              Lab Grown Diamonds
+              {!isLoading && stoneType === 'lab' && (
+                <span className="ml-1 text-[11px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">
+                  {diamonds.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="page-container py-8">
         <div className="flex gap-8 items-start">
 
           {/* ── Sidebar ── */}
-          <aside className="w-72 shrink-0 sticky top-24 max-h-[calc(100vh-6rem)] overflow-y-auto">
+          <aside className="w-64 shrink-0 sticky top-[120px] max-h-[calc(100vh-8rem)] overflow-y-auto">
             <div className="bg-white border border-gray-100 p-5 shadow-sm">
-              {/* Stone type */}
-              <div className="flex rounded border border-gray-200 overflow-hidden mb-5">
-                {(['natural','lab'] as const).map(t => (
-                  <button key={t} onClick={() => setStoneType(t)}
-                    className={cn('flex-1 py-2 text-[11px] font-sans font-medium transition-all',
-                      stoneType === t ? 'bg-charcoal text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}>
-                    {t === 'lab' ? 'Lab Grown Diamond' : 'Natural Diamond'}
-                  </button>
-                ))}
-              </div>
 
               <FilterBlock title="Shape">
                 <div className="grid grid-cols-5 gap-1.5">
@@ -269,9 +345,14 @@ export default function DiamondSearchPage() {
                 </div>
               </FilterBlock>
 
-              <FilterBlock title="Carat">
+              <FilterBlock title="Carat Weight">
                 <DualSlider min={0.20} max={5.00} step={0.05} lo={carat[0]} hi={carat[1]}
                   onChange={(a,b) => setCarat([a,b])} fmt={v => `${v.toFixed(2)} ct`} />
+              </FilterBlock>
+
+              <FilterBlock title="Price">
+                <DualSlider min={100} max={100000} step={100} lo={priceR[0]} hi={priceR[1]}
+                  onChange={(a,b) => setPriceR([a,b])} fmt={v => `£${v.toLocaleString('en-GB')}`} />
               </FilterBlock>
 
               <FilterBlock title="Clarity">
@@ -298,14 +379,9 @@ export default function DiamondSearchPage() {
                 <div className="flex flex-wrap gap-1">{CUTS.map(c => <Pill key={c} active={cuts.includes(c)} onClick={() => tog(cuts, setCuts, c)}>{c}</Pill>)}</div>
               </FilterBlock>
 
-              <FilterBlock title="Price">
-                <DualSlider min={100} max={100000} step={100} lo={priceR[0]} hi={priceR[1]}
-                  onChange={(a,b) => setPriceR([a,b])} fmt={v => `£${v.toLocaleString('en-GB')}`} />
-              </FilterBlock>
-
               {hasFilters && (
                 <button onClick={reset} className="w-full flex items-center justify-center gap-2 py-2 text-xs font-sans border border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500 transition-colors rounded mt-1">
-                  <RotateCcw size={11} /> Reset
+                  <RotateCcw size={11} /> Reset Filters
                 </button>
               )}
             </div>
@@ -315,15 +391,19 @@ export default function DiamondSearchPage() {
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
               <div>
-                <h2 className="font-serif text-xl text-charcoal">Choose Your Diamond</h2>
+                <h2 className="font-serif text-xl text-charcoal">
+                  {stoneType === 'lab' ? 'Lab Grown Diamonds' : 'Natural Diamonds'}
+                </h2>
                 <p className="text-xs font-sans text-gray-400 mt-0.5">
-                  {isLoading ? 'Searching…' : `${diamonds.length.toLocaleString()} diamonds found matching your criteria`}
+                  {isLoading
+                    ? 'Loading diamonds…'
+                    : `${diamonds.length.toLocaleString()} diamond${diamonds.length !== 1 ? 's' : ''} available`}
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="relative">
                   <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by code"
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU / cert. no."
                     className="pl-7 pr-3 py-1.5 text-xs font-sans border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-amber-300 w-36" />
                 </div>
                 <select value={sort} onChange={e => setSort(e.target.value)}
@@ -343,43 +423,76 @@ export default function DiamondSearchPage() {
               </div>
             </div>
 
+            {/* Loading skeleton */}
             {isLoading && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {Array.from({length:9}).map((_,i) => (
+                {Array.from({length: 9}).map((_,i) => (
                   <div key={i} className="bg-white border border-gray-100 animate-pulse">
                     <div className="aspect-square bg-gray-200" />
-                    <div className="p-3 space-y-2"><div className="h-4 bg-gray-200 rounded w-16" /><div className="h-3 bg-gray-200 rounded w-24" /></div>
+                    <div className="p-3 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-16" />
+                      <div className="h-3 bg-gray-200 rounded w-24" />
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
+            {/* Empty state */}
             {!isLoading && diamonds.length === 0 && (
               <div className="text-center py-20 bg-white border border-gray-100">
-                <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" viewBox="0 0 64 64" fill="none"><polygon points="32,4 58,20 50,54 14,54 6,20" stroke="currentColor" strokeWidth="2" /></svg>
-                <p className="font-sans text-gray-500 mb-4">No diamonds found matching your filters</p>
+                <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" viewBox="0 0 64 64" fill="none">
+                  <polygon points="32,4 58,20 50,54 14,54 6,20" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                <p className="font-sans text-gray-500 mb-2">No diamonds found matching your filters</p>
+                <p className="text-xs text-gray-400 mb-4">Try adjusting the carat or price range</p>
                 <button onClick={reset} className="btn-gold text-xs">Reset Filters</button>
               </div>
             )}
 
+            {/* Grid view */}
             {!isLoading && view === 'grid' && diamonds.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {diamonds.map(d => <DiamondCard key={d._id} d={d} />)}
               </div>
             )}
 
+            {/* List view */}
             {!isLoading && view === 'list' && diamonds.length > 0 && (
               <div className="border border-gray-100 overflow-x-auto">
                 <div className="bg-charcoal text-white text-[10px] font-sans font-semibold uppercase tracking-wide px-4 py-2 min-w-[640px]"
                   style={{ display:'grid', gridTemplateColumns:'52px 1fr 72px 80px 64px 80px 96px 88px', gap:'12px' }}>
                   <span /><span>Shape</span><span>Carat</span><span>Cut</span><span>Colour</span><span>Clarity</span><span>Price</span><span />
                 </div>
-                <div className="min-w-[640px]">{diamonds.map((d,i) => <DiamondRow key={d._id} d={d} i={i} />)}</div>
+                <div className="min-w-[640px]">
+                  {diamonds.map((d,i) => <DiamondRow key={d._id} d={d} i={i} />)}
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Page wrapper (Suspense needed for useSearchParams) ───────────────────────
+export default function DiamondSearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-ivory min-h-screen">
+        <div className="bg-charcoal py-8">
+          <div className="page-container text-center">
+            <p className="section-subtitle text-gold-400 mb-2">GIA &amp; IGI Certified</p>
+            <h1 className="font-serif text-4xl font-light text-white">Choose Your Diamond</h1>
+          </div>
+        </div>
+        <div className="page-container py-20 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-gold-400 border-t-transparent rounded-full mx-auto" />
+        </div>
+      </div>
+    }>
+      <DiamondSearchInner />
+    </Suspense>
   );
 }

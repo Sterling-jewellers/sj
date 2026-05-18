@@ -9,19 +9,22 @@ import { useAuthStore } from '@/store/authStore';
 import MegaMenu from './MegaMenu';
 import SearchModal from './SearchModal';
 import { cn } from '@/lib/utils';
-import { RING_BUILDER_ENABLED } from '@/lib/features';
+import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
 
 const allNavLinks = [
-  { label: 'Engagement Rings', href: '/category/engagement-rings', hasMenu: true,  ringBuilder: false },
-  { label: 'Rings',            href: '/category/rings',            hasMenu: true,  ringBuilder: false },
-  { label: 'Wedding Rings',    href: '/category/wedding-rings',    hasMenu: true,  ringBuilder: false },
-  { label: 'Diamonds',         href: '/diamonds',                  hasMenu: true,  ringBuilder: false },
-  { label: 'Jewellery',        href: '/category/jewellery',        hasMenu: true,  ringBuilder: false },
-  { label: 'Create Your Ring', href: '/custom-ring',               hasMenu: false, ringBuilder: true  },
-  { label: 'Book Appointment', href: '/book-appointment',          hasMenu: false, ringBuilder: false },
+  { label: 'Engagement Rings', href: '/category/engagement-rings', hasMenu: true,  ringBuilder: false, diamonds: false },
+  { label: 'Rings',            href: '/category/rings',            hasMenu: true,  ringBuilder: false, diamonds: false },
+  { label: 'Wedding Rings',    href: '/category/wedding-rings',    hasMenu: true,  ringBuilder: false, diamonds: false },
+  { label: 'Diamonds',         href: '/diamonds',                  hasMenu: true,  ringBuilder: false, diamonds: true  },
+  { label: 'Jewellery',        href: '/category/jewellery',        hasMenu: true,  ringBuilder: false, diamonds: false },
+  { label: 'Create Your Ring', href: '/custom-ring',               hasMenu: false, ringBuilder: true,  diamonds: false },
+  { label: 'Book Appointment', href: '/book-appointment',          hasMenu: false, ringBuilder: false, diamonds: false },
 ];
 
-const navLinks = allNavLinks.filter(l => !l.ringBuilder || RING_BUILDER_ENABLED);
+const navLinks = allNavLinks.filter(l =>
+  (!l.ringBuilder || RING_BUILDER_ENABLED) &&
+  (!l.diamonds    || DIAMONDS_ENABLED)
+);
 
 export default function Navbar() {
   const [activeMenu, setActiveMenu]   = useState<string | null>(null);
@@ -57,8 +60,8 @@ export default function Navbar() {
         <span className="inline-flex items-center gap-1.5">
           <Phone size={11} /> +44 742 906 5954
         </span>
-        <span className="hidden sm:inline mx-3 opacity-40">|</span>
-        <span className="hidden sm:inline">GIA &amp; IGI Certified Diamonds</span>
+        {DIAMONDS_ENABLED && <><span className="hidden sm:inline mx-3 opacity-40">|</span>
+        <span className="hidden sm:inline">GIA &amp; IGI Certified Diamonds</span></>}
       </div>
 
       {/* ── Main header ──────────────────────────────────────────────────── */}

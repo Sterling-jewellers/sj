@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail, Shield, Truck, Award, RefreshCw } from 'lucide-react';
-import { RING_BUILDER_ENABLED } from '@/lib/features';
+import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
 
 const trustBadges = [
   { icon: Shield, label: 'Secure Payments', sub: 'SSL Encrypted' },
@@ -72,7 +72,7 @@ export default function Footer() {
             <ul className="space-y-3">
               {[
                 ...(RING_BUILDER_ENABLED ? [{ label: 'Create Your Ring', href: '/custom-ring' }] : []),
-                { label: 'Diamond Search', href: '/diamonds' },
+                ...(DIAMONDS_ENABLED     ? [{ label: 'Diamond Search',   href: '/diamonds'     }] : []),
                 { label: 'Ring Size Guide', href: '/size-guide' },
                 { label: 'Jewellery Care', href: '/jewellery-care' },
                 { label: 'Engraving Service', href: '/engraving' },

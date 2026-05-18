@@ -142,6 +142,7 @@ export const adminApi = {
   }) => api.post('/admin/hanron/sync', data),
   hanronInvalidate: () => api.post('/admin/hanron/invalidate'),
   hanronSeedCategories: () => api.post('/admin/hanron/seed-categories'),
+  hanronFixImages: () => api.post('/admin/hanron/fix-images'),
 
   // Nivoda Diamond API
   nivodaStatus: () => api.get('/admin/nivoda/status'),

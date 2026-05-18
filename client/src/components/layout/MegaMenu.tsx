@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { RING_BUILDER_ENABLED } from '@/lib/features';
+import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
 
 // ─── Diamond shape SVG icons ──────────────────────────────────────────────────
 const ShapeIcon = ({ shape }: { shape: string }) => {
@@ -302,21 +302,22 @@ function EngagementMenu() {
 function DiamondsMenu() {
   return (
     <div className="page-container py-8">
-      <div className="grid grid-cols-[200px_1fr_260px] gap-10">
+      <div className="grid grid-cols-[220px_1fr_260px] gap-10">
+
+        {/* Col 1 — nav links */}
         <div>
           <h4 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-3">Browse Diamonds</h4>
           <ul className="space-y-2.5">
             {[
-              { label: 'All Diamonds',       href: '/diamonds' },
-              { label: 'Round Brilliant',    href: '/diamonds?shape=round' },
-              { label: 'Oval Cut',           href: '/diamonds?shape=oval' },
-              { label: 'Princess Cut',       href: '/diamonds?shape=princess' },
-              { label: 'Cushion Cut',        href: '/diamonds?shape=cushion' },
-              { label: 'Emerald Cut',        href: '/diamonds?shape=emerald' },
-              { label: 'Pear Shape',         href: '/diamonds?shape=pear' },
+              { label: 'All Diamonds',       href: '/diamonds',              desc: 'Full Nivoda collection' },
+              { label: 'Natural Diamonds',   href: '/diamonds?type=natural', desc: 'Mined, GIA & IGI certified' },
+              { label: 'Lab Grown Diamonds', href: '/diamonds?type=lab',     desc: 'Sustainable & brilliant' },
             ].map(l => (
               <li key={l.label}>
-                <Link href={l.href} className="text-sm font-sans text-charcoal hover:text-gold-600 transition-colors">{l.label}</Link>
+                <Link href={l.href} className="group block py-0.5">
+                  <span className="text-sm font-sans font-medium text-charcoal group-hover:text-gold-600 transition-colors">{l.label}</span>
+                  <span className="block text-[11px] text-gray-400">{l.desc}</span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -324,9 +325,9 @@ function DiamondsMenu() {
             <h4 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-2">Learn More</h4>
             <ul className="space-y-1.5">
               {[
-                { label: 'Diamond FAQ',     href: '/faq' },
-                { label: 'Size Guide',       href: '/size-guide' },
-                { label: 'Contact an Expert',href: '/contact' },
+                { label: 'Diamond Education', href: '/diamond-education' },
+                { label: 'Diamond FAQ',        href: '/faq' },
+                { label: 'Contact an Expert',  href: '/contact' },
               ].map(l => (
                 <li key={l.label}>
                   <Link href={l.href} className="text-xs font-sans text-gray-500 hover:text-gold-600">{l.label}</Link>
@@ -336,22 +337,50 @@ function DiamondsMenu() {
           </div>
         </div>
 
-        <div>
-          <h4 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Shop by Shape</h4>
-          <div className="grid grid-cols-5 gap-1">
-            {SHAPES.map(({ label, shape }) => (
-              <Link
-                key={shape}
-                href={`/diamonds?shape=${shape}`}
-                className="group flex flex-col items-center gap-1.5 p-2 hover:bg-champagne rounded transition-colors"
-              >
-                <ShapeIcon shape={shape} />
-                <span className="text-[10px] font-sans text-gray-500 group-hover:text-gold-600 transition-colors text-center">{label}</span>
-              </Link>
-            ))}
-          </div>
+        {/* Col 2 — two big category tiles */}
+        <div className="grid grid-cols-2 gap-4 self-start">
+          <Link href="/diamonds?type=natural"
+            className="group relative overflow-hidden border border-gray-100 hover:border-gold-300 transition-all bg-white">
+            <div className="relative h-40 overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=480&h=320&fit=crop&q=80"
+                alt="Natural Diamonds"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/10 to-transparent" />
+              <div className="absolute bottom-0 left-0 p-3">
+                <p className="text-[9px] font-sans tracking-[0.2em] uppercase text-gold-300">GIA &amp; IGI Certified</p>
+                <p className="font-serif text-base font-light text-white leading-tight">Natural Diamonds</p>
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-[11px] font-sans text-gray-500">Ethically mined, certified diamonds available in all shapes and sizes.</p>
+              <span className="inline-block mt-2 text-[11px] font-sans font-medium text-gold-600 group-hover:underline">Browse Natural →</span>
+            </div>
+          </Link>
+
+          <Link href="/diamonds?type=lab"
+            className="group relative overflow-hidden border border-gray-100 hover:border-gold-300 transition-all bg-white">
+            <div className="relative h-40 overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=480&h=320&fit=crop&q=80"
+                alt="Lab Grown Diamonds"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/80 via-transparent to-transparent" />
+              <div className="absolute bottom-0 left-0 p-3">
+                <p className="text-[9px] font-sans tracking-[0.2em] uppercase text-emerald-300">Sustainable Choice</p>
+                <p className="font-serif text-base font-light text-white leading-tight">Lab Grown Diamonds</p>
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-[11px] font-sans text-gray-500">Identical brilliance to mined diamonds — sustainably created, IGI certified.</p>
+              <span className="inline-block mt-2 text-[11px] font-sans font-medium text-emerald-600 group-hover:underline">Browse Lab Grown →</span>
+            </div>
+          </Link>
         </div>
 
+        {/* Col 3 — featured tile */}
         <div className="space-y-3">
           <FeaturedTile
             title="GIA & IGI Certified"
@@ -359,13 +388,23 @@ function DiamondsMenu() {
             image="https://images.unsplash.com/photo-1518049362265-d5b2a6467637?w=520&h=320&fit=crop"
             href="/diamonds"
           />
-          <FeaturedTile
-            title="Build a Custom Ring"
-            sub="Start With a Diamond"
-            image="https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=520&h=320&fit=crop"
-            href="/custom-ring"
-          />
+          <div className="bg-champagne/60 border border-gold-200/50 p-4">
+            <p className="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-gold-700 mb-1">Why Buy From Us?</p>
+            <ul className="space-y-1">
+              {[
+                '100% certified by GIA or IGI',
+                'Free UK delivery on all orders',
+                '30-day hassle-free returns',
+                'Expert advice 7 days a week',
+              ].map(t => (
+                <li key={t} className="flex items-start gap-1.5 text-[11px] font-sans text-charcoal/80">
+                  <span className="text-gold-500 mt-0.5">✓</span>{t}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
+
       </div>
     </div>
   );
@@ -597,7 +636,7 @@ export default function MegaMenu({ activeMenu }: { activeMenu: string }) {
   return (
     <div className="absolute top-full left-0 right-0 bg-ivory border-t border-gray-200 shadow-2xl z-50 animate-fade-in">
       {activeMenu === 'Engagement Rings' && <EngagementMenu />}
-      {activeMenu === 'Diamonds'         && <DiamondsMenu />}
+      {activeMenu === 'Diamonds'         && DIAMONDS_ENABLED && <DiamondsMenu />}
       {activeMenu === 'Rings'            && <RingsMenu />}
       {activeMenu === 'Wedding Rings'    && <WeddingMenu />}
       {activeMenu === 'Jewellery'        && <JewelleryMenu />}

@@ -102,10 +102,12 @@ export interface IDiamond {
   fluorescence: string;
   polish: string;
   symmetry: string;
-  imageUrl?: string;
-  videoUrl?: string;
-  loupe360?: string;   // Nivoda Loupe360 interactive viewer URL
-  source?:   'nivoda' | 'local';  // where the data came from
+  imageUrl?:   string;
+  videoUrl?:   string;
+  loupe360?:   string;    // Nivoda Loupe360 interactive viewer URL
+  isLabGrown?: boolean;   // true for lab-grown diamonds
+  isAvailable?: boolean;
+  source?:     'nivoda' | 'local';  // where the data came from
 }
 
 export interface ICartItem {

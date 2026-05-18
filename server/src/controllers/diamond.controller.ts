@@ -12,13 +12,14 @@ export const getNivodaStatus = asyncHandler(async (_req: Request, res: Response)
 
 export const getDiamonds = asyncHandler(async (req: Request, res: Response) => {
   const page  = Number(req.query.page)  || 1;
-  const limit = Number(req.query.limit) || 48;
+  const limit = Math.min(Number(req.query.limit) || 100, 500); // cap at 500 per page
   const skip  = (page - 1) * limit;
 
   // ── Build MongoDB query ───────────────────────────────────────────────────
   const query: Record<string, unknown> = { isAvailable: true };
 
-  const labgrownParam = req.query.labgrown as string | undefined;
+  // Accept both spellings: labgrown (legacy) and labGrown (camelCase from frontend)
+  const labgrownParam = (req.query.labGrown ?? req.query.labgrown) as string | undefined;
   if (labgrownParam === 'true')  query.isLabGrown = true;
   if (labgrownParam === 'false') query.isLabGrown = false;
 
