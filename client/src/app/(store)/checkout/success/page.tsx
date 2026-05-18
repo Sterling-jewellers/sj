@@ -29,6 +29,7 @@ function SuccessContent() {
         const { shippingData, couponCode, couponData, cartItems } = JSON.parse(pending);
         ordersApi
           .create({
+            email: shippingData.email,    // ← confirmation email recipient
             items: cartItems,
             shippingAddress: {
               fullName: shippingData.fullName,

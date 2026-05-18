@@ -60,13 +60,13 @@ function PaymentStep({ total, shippingData, couponCode, couponData, onBack }: Pa
     try {
       // Save order data to sessionStorage BEFORE redirect (3DS may redirect away)
       sessionStorage.setItem('sj_pending_order', JSON.stringify({
-        shippingData,
+        shippingData,   // includes .email
         couponCode,
         couponData,
         cartItems: items.map((i) => ({
           product: i.product._id,
           name: i.product.name,
-          image: i.product.images[0],
+          image: i.product.images?.[0] || '',
           price: i.totalPrice,
           quantity: i.quantity,
           selectedMetal: i.selectedMetal,
@@ -93,12 +93,19 @@ function PaymentStep({ total, shippingData, couponCode, couponData, onBack }: Pa
       }
 
       if (paymentIntent?.status === 'succeeded') {
-        // No redirect needed — create order inline
-        await ordersApi.create({
+        // Redirect to success immediately — don't make the user wait for the
+        // order DB write. Fire-and-forget: if it fails, success page handles it.
+        sessionStorage.removeItem('sj_pending_order');
+        clearCart();
+        router.push('/checkout/success');
+
+        // Create order in the background (non-blocking from user perspective)
+        ordersApi.create({
+          email: shippingData.email,   // ← so server can send confirmation email
           items: items.map((i) => ({
             product: i.product._id,
             name: i.product.name,
-            image: i.product.images[0],
+            image: i.product.images?.[0] || '',
             price: i.totalPrice,
             quantity: i.quantity,
             selectedMetal: i.selectedMetal,
@@ -118,11 +125,7 @@ function PaymentStep({ total, shippingData, couponCode, couponData, onBack }: Pa
           shippingMethod: shippingData.shippingMethod,
           couponCode: couponData ? couponCode : undefined,
           paymentIntentId: paymentIntent.id,
-        });
-
-        sessionStorage.removeItem('sj_pending_order');
-        clearCart();
-        router.push('/checkout/success');
+        }).catch((err) => console.error('[order] create failed after payment:', err));
       }
     } catch {
       sessionStorage.removeItem('sj_pending_order');

@@ -38,14 +38,39 @@ function buildEmailData(order: InstanceType<typeof Order>, orderId: string): Ord
   };
 }
 
+/**
+ * Send order emails AFTER the HTTP response has been flushed.
+ * This keeps checkout fast — SMTP latency never touches the user's wait time.
+ */
+function dispatchOrderEmails(
+  emailData: OrderEmailData,
+  customerEmail: string,
+  firstName: string,
+) {
+  // setImmediate runs after the current event-loop tick (response already sent)
+  setImmediate(async () => {
+    try {
+      await Promise.allSettled([
+        sendOrderConfirmation(customerEmail, firstName, emailData),
+        sendAdminNewOrderNotification(emailData, customerEmail),
+      ]);
+    } catch (err) {
+      console.error('[email] order emails failed:', err);
+    }
+  });
+}
+
 /* ════════════════════════════════════════════════════════════════════════════ */
 
 export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { items, shippingAddress, shippingMethod, couponCode, paymentIntentId } = req.body;
+  const { items, shippingAddress, shippingMethod, couponCode, paymentIntentId, email: bodyEmail } = req.body;
 
   const shippingCosts: Record<string, number> = { standard: 0, express: 9.99, 'next-day': 14.99 };
   const shippingCost = shippingCosts[shippingMethod] || 0;
-  const subtotal = items.reduce((sum: number, item: { price: number; quantity: number }) => sum + item.price * item.quantity, 0);
+  const subtotal = items.reduce(
+    (sum: number, item: { price: number; quantity: number }) => sum + item.price * item.quantity,
+    0,
+  );
 
   let discount = 0;
   if (couponCode) {
@@ -78,20 +103,21 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     tax,
     total,
     paymentIntentId,
-    paymentStatus:    paymentIntentId ? 'paid' : 'pending',
-    orderStatus:      'confirmed',
+    paymentStatus:     paymentIntentId ? 'paid' : 'pending',
+    orderStatus:       'confirmed',
     estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
-  // ── Send emails (non-blocking — don't fail the order if email fails) ──
+  // ── Respond immediately — emails fire after flush ──────────────────────────
+  res.status(201).json(order);
+
+  // ── Resolve customer email (priority: form email → DB lookup) ──────────────
   try {
-    const emailData = buildEmailData(order, order._id.toString());
+    const emailData  = buildEmailData(order, order._id.toString());
+    let customerEmail: string | undefined = bodyEmail || req.body.guestEmail;
+    let firstName = shippingAddress?.fullName?.split(' ')[0] || 'Customer';
 
-    // Look up customer email
-    let customerEmail = req.body.guestEmail as string | undefined;
-    let firstName     = shippingAddress?.fullName?.split(' ')[0] || 'Customer';
-
-    if (req.user?._id) {
+    if (!customerEmail && req.user?._id) {
       const user = await User.findById(req.user._id).select('email firstName');
       if (user) {
         customerEmail = user.email;
@@ -100,20 +126,19 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     }
 
     if (customerEmail) {
-      await Promise.allSettled([
-        sendOrderConfirmation(customerEmail, firstName, emailData),
-        sendAdminNewOrderNotification(emailData, customerEmail),
-      ]);
+      dispatchOrderEmails(emailData, customerEmail, firstName);
+    } else {
+      console.warn(`[email] no customer email found for order ${order.orderNumber}`);
     }
-  } catch (emailErr) {
-    console.error('[email] order confirmation failed:', emailErr);
+  } catch (err) {
+    console.error('[email] failed to resolve customer email:', err);
   }
-
-  res.status(201).json(order);
 });
 
 export const getMyOrders = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const orders = await Order.find({ user: req.user?._id }).sort({ createdAt: -1 }).populate('items.product', 'name images');
+  const orders = await Order.find({ user: req.user?._id })
+    .sort({ createdAt: -1 })
+    .populate('items.product', 'name images');
   res.json(orders);
 });
 
@@ -128,32 +153,41 @@ export const getOrderById = asyncHandler(async (req: AuthRequest, res: Response)
 });
 
 export const getAllOrders = asyncHandler(async (_req: Request, res: Response) => {
-  const orders = await Order.find().sort({ createdAt: -1 }).populate('user', 'firstName lastName email');
+  const orders = await Order.find()
+    .sort({ createdAt: -1 })
+    .populate('user', 'firstName lastName email');
   res.json(orders);
 });
 
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const order = await Order.findByIdAndUpdate(
     req.params.id,
-    { orderStatus: req.body.status, ...(req.body.trackingNumber ? { trackingNumber: req.body.trackingNumber } : {}), ...(req.body.trackingUrl ? { trackingUrl: req.body.trackingUrl } : {}) },
-    { new: true }
+    {
+      orderStatus: req.body.status,
+      ...(req.body.trackingNumber ? { trackingNumber: req.body.trackingNumber } : {}),
+      ...(req.body.trackingUrl    ? { trackingUrl:    req.body.trackingUrl    } : {}),
+    },
+    { new: true },
   ).populate('user', 'firstName email');
 
   if (!order) { res.status(404).json({ message: 'Order not found' }); return; }
 
-  // ── Send status update email ──
-  try {
-    const populatedUser = order.user as unknown as { firstName?: string; email?: string } | null;
-    const customerEmail = populatedUser?.email;
-    const firstName     = populatedUser?.firstName || 'Customer';
-
-    if (customerEmail && ['processing', 'dispatched', 'delivered', 'cancelled'].includes(order.orderStatus)) {
-      const emailData = buildEmailData(order, order._id.toString());
-      await sendOrderStatusUpdate(customerEmail, firstName, emailData);
-    }
-  } catch (emailErr) {
-    console.error('[email] status update email failed:', emailErr);
-  }
-
+  // Respond immediately, then email
   res.json(order);
+
+  // ── Status update email (non-blocking) ─────────────────────────────────────
+  setImmediate(async () => {
+    try {
+      const populatedUser = order.user as unknown as { firstName?: string; email?: string } | null;
+      const customerEmail = populatedUser?.email;
+      const firstName     = populatedUser?.firstName || 'Customer';
+
+      if (customerEmail && ['processing', 'dispatched', 'delivered', 'cancelled'].includes(order.orderStatus)) {
+        const emailData = buildEmailData(order, order._id.toString());
+        await sendOrderStatusUpdate(customerEmail, firstName, emailData);
+      }
+    } catch (err) {
+      console.error('[email] status update email failed:', err);
+    }
+  });
 });
