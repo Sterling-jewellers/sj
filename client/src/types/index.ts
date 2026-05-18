@@ -131,19 +131,35 @@ export interface IOrder {
     quantity: number;
     selectedMetal?: string;
     selectedSize?: string;
+    engraving?: string;
   }[];
-  shippingAddress: IAddress;
+  shippingAddress: {
+    fullName: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    county: string;
+    postcode: string;
+    country: string;
+    phone: string;
+  };
   shippingMethod: string;
   shippingCost: number;
   subtotal: number;
   discount: number;
+  couponCode?: string;
   tax: number;
   total: number;
+  paymentMethod?: string;
   paymentStatus: string;
   orderStatus: string;
   trackingNumber?: string;
+  trackingUrl?: string;
+  notes?: string;
   estimatedDelivery?: string;
+  deliveredAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface IReview {
