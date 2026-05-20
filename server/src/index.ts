@@ -50,6 +50,8 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:3000',
   'http://localhost:3001',
+  'https://sterlingjewellers.co.uk',       // ← add this
+  'https://www.sterlingjewellers.co.uk',   // ← and this
 ].filter(Boolean) as string[];
 
 app.use(cors({

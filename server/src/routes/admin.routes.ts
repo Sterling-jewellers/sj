@@ -3,8 +3,15 @@ import { Router, Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
-import Anthropic from '@anthropic-ai/sdk';
 import { v2 as cloudinary } from 'cloudinary';
+import { generateProductContent, estimateCompetitorPrice as geminiEstimatePrice } from '../services/gemini.service';
+import {
+  generateLifestylePhoto as falGenerateLifestyle,
+  generateMetalVariantImage,
+  checkMetalVariantStatus,
+  start3DGeneration as falStart3D,
+  check3DStatus as falCheck3D,
+} from '../services/fal.service';
 import Order from '../models/Order.model';
 import Product from '../models/Product.model';
 import Diamond from '../models/Diamond.model';
@@ -21,7 +28,6 @@ import {
   checkNivodaStatus,
   syncAllNivodaDiamonds,
 } from '../services/nivoda.service';
-import { generateLifestylePhoto } from '../services/replicate.service';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -386,86 +392,36 @@ router.post('/ai/competitor-price', asyncHandler(async (req: Request, res: Respo
     bandStyle?: string; shankWidth?: string; gemstone?: string; caratWeight?: number;
   };
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(503).json({ message: 'Set ANTHROPIC_API_KEY to use AI price estimation' });
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(503).json({ message: 'Set GEMINI_API_KEY to use AI price estimation' });
     return;
   }
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const prompt = `You are a luxury jewellery pricing expert with deep knowledge of UK high-street jewellery retailers (Mappin & Webb, Goldsmiths, Ernest Jones, Beaverbrooks, H.Samuel).
-
-Estimate the typical high-street retail price in GBP for this ring:
-- Name: ${name}
-- Metal: ${karat ? `${karat} ` : ''}${metalType || 'Not specified'}
-- Setting Style: ${settingType || 'Not specified'}
-- Band Style: ${bandStyle || 'Plain'}
-- Shank Width: ${shankWidth || 'Standard'}
-- Gemstone / Diamond: ${gemstone || 'Not specified'}${caratWeight ? ` (${caratWeight}ct)` : ''}
-
-Return ONLY a JSON object with no markdown or extra text:
-{
-  "estimatedHighStreetPrice": <number in GBP, whole number>,
-  "rationale": "<one sentence explaining the estimate>",
-  "comparables": ["<retailer 1>: approx £<price>", "<retailer 2>: approx £<price>"]
-}
-
-Base this on current (2024/2025) UK high-street prices. Be realistic and conservative — don't underestimate. For engagement rings with diamonds, factor in the diamond cost. For plain gold rings, factor in gold market price × typical retail markup.`;
-
-  const message = await anthropic.messages.create({
-    model: 'claude-opus-4-5',
-    max_tokens: 512,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const raw = (message.content[0] as { type: string; text: string }).text.trim();
-  const jsonStr = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-  const result = JSON.parse(jsonStr);
-  res.json(result);
+  try {
+    const result = await geminiEstimatePrice({ name, metalType, karat, settingType, bandStyle, shankWidth, gemstone, caratWeight });
+    res.json(result);
+  } catch (err: unknown) {
+    const msg = String((err as { message?: string })?.message || 'AI estimation failed');
+    res.status(502).json({ message: msg });
+  }
 }));
 
-// ─── AI Product Generation ────────────────────────────────────────────────────
+// ─── AI Product Generation (Gemini) ──────────────────────────────────────────
 router.post('/ai/generate-product', asyncHandler(async (req: Request, res: Response) => {
   const { name, category, metalOptions, style, settingType, gemstone } = req.body;
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(503).json({ message: 'AI generation not configured — set ANTHROPIC_API_KEY' });
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(503).json({ message: 'AI generation not configured — set GEMINI_API_KEY' });
     return;
   }
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const metalStr = (metalOptions || []).map((m: { karat?: string; type: string }) => `${m.karat ?? ''} ${m.type}`.trim()).join(', ');
-  const prompt = `You are a luxury jewellery copywriter for Sterling Jewellers, a UK-based fine jewellery brand.
-
-Write the following for this product:
-- Product name: ${name}
-- Category: ${category}
-- Metal options: ${metalStr || 'Not specified'}
-- Style: ${style || 'Not specified'}
-- Setting: ${settingType || 'Not specified'}
-- Gemstone: ${gemstone || 'Not specified'}
-
-Output ONLY a JSON object with these fields (no markdown, no extra text):
-{
-  "shortDescription": "One sentence (under 120 chars) for product listings",
-  "description": "3-4 sentences rich HTML describing the piece. Use <p> tags. Mention craftsmanship, occasion suitability, and unique features.",
-  "metaTitle": "SEO title under 60 chars including 'Sterling Jewellers'",
-  "metaDescription": "SEO meta description 140-160 chars with primary keyword",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-}`;
-
-  const message = await anthropic.messages.create({
-    model: 'claude-opus-4-5',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const raw = (message.content[0] as { type: string; text: string }).text.trim();
-  // Strip any accidental markdown fences
-  const jsonStr = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-  const result = JSON.parse(jsonStr);
-  res.json(result);
+  try {
+    const result = await generateProductContent({ name, category, metalOptions, style, settingType, gemstone });
+    res.json(result);
+  } catch (err: unknown) {
+    const msg = String((err as { message?: string })?.message || 'AI generation failed');
+    res.status(502).json({ message: msg });
+  }
 }));
 
 // ─── Excel Bulk Import ────────────────────────────────────────────────────────
@@ -535,11 +491,12 @@ router.post('/products/import', upload.single('file'), asyncHandler(async (req: 
 }));
 
 // ─── AI: Generate Metal-Coloured Image (Replicate img2img) ───────────────────
+// ─── AI: Generate Metal Colour Variant (fal.ai Flux Kontext) ─────────────────
 router.post('/ai/generate-metal-image', asyncHandler(async (req: Request, res: Response) => {
   const { imageUrl, metalType, karat } = req.body as { imageUrl: string; metalType: string; karat?: string };
 
-  if (!process.env.REPLICATE_API_TOKEN) {
-    res.status(503).json({ message: 'AI image generation not configured — add REPLICATE_API_TOKEN to server/.env' });
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'AI image generation not configured — add FAL_KEY to server/.env' });
     return;
   }
   if (!imageUrl || !metalType) {
@@ -547,58 +504,18 @@ router.post('/ai/generate-metal-image', asyncHandler(async (req: Request, res: R
     return;
   }
 
-  const metalPrompts: Record<string, string> = {
-    'yellow-gold': `luxury jewellery product photo, ${karat || '18ct'} yellow gold ring, rich warm golden metal, same ring design, professional studio lighting, pure white background, 8K`,
-    'white-gold':  `luxury jewellery product photo, ${karat || '18ct'} white gold ring, bright cool polished silver-white metal, same ring design, professional studio lighting, pure white background, 8K`,
-    'rose-gold':   `luxury jewellery product photo, ${karat || '18ct'} rose gold ring, warm blush-pink polished metal, same ring design, professional studio lighting, pure white background, 8K`,
-    'platinum':    `luxury jewellery product photo, platinum ring, cool grey polished metal, same ring design, professional studio lighting, pure white background, 8K`,
-    'silver':      `luxury jewellery product photo, sterling silver ring, bright neutral polished metal, same ring design, professional studio lighting, pure white background, 8K`,
-  };
-
-  const prompt = metalPrompts[metalType] ?? metalPrompts['yellow-gold'];
-
-  // Call Replicate /models/{owner}/{name}/predictions — uses latest version automatically
-  const r = await fetch('https://api.replicate.com/v1/models/stability-ai/sdxl/predictions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-      Prefer: 'respond-async',
-    },
-    body: JSON.stringify({
-      input: {
-        prompt,
-        image: imageUrl,
-        prompt_strength: 0.35, // keep ring shape, change metal colour
-        num_inference_steps: 30,
-        guidance_scale: 7.5,
-        refine: 'expert_ensemble_refiner',
-        high_noise_frac: 0.8,
-      },
-    }),
-  });
-
-  if (!r.ok) {
-    const err = await r.text();
-    res.status(502).json({ message: `Replicate error: ${err}` });
-    return;
-  }
-
-  const prediction = await r.json() as { id: string; status: string };
-  res.json({ predictionId: prediction.id, status: prediction.status });
+  const { predictionId } = await generateMetalVariantImage(imageUrl, metalType, karat);
+  res.json({ predictionId, status: 'processing' });
 }));
 
-// ─── AI: Poll Replicate Generation Status ────────────────────────────────────
+// ─── AI: Poll fal.ai Generation Status ───────────────────────────────────────
 router.get('/ai/generation-status/:id', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.REPLICATE_API_TOKEN) {
-    res.status(503).json({ message: 'REPLICATE_API_TOKEN not set' });
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'FAL_KEY not set' });
     return;
   }
-  const r = await fetch(`https://api.replicate.com/v1/predictions/${req.params.id}`, {
-    headers: { Authorization: `Token ${process.env.REPLICATE_API_TOKEN}` },
-  });
-  const data = await r.json() as { status: string; output?: string[]; error?: string };
-  res.json({ status: data.status, output: data.output, error: data.error });
+  const result = await checkMetalVariantStatus(req.params.id);
+  res.json(result);
 }));
 
 // ─── AI: Patch Metal Option Images ───────────────────────────────────────────
@@ -690,12 +607,12 @@ async function uploadHanronImageToCloudinary(imageUrl: string): Promise<string> 
   }
 }
 
-// ─── AI: Start 3D Model Generation (Meshy.ai image-to-3d) ────────────────────
+// ─── AI: Start 3D Model Generation (fal.ai Trellis image-to-3d) ──────────────
 router.post('/ai/generate-3d', asyncHandler(async (req: Request, res: Response) => {
   const { imageUrl } = req.body as { imageUrl: string };
 
-  if (!process.env.MESHY_API_KEY) {
-    res.status(503).json({ message: '3D generation not configured — add MESHY_API_KEY to server/.env' });
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: '3D generation not configured — add FAL_KEY to server/.env' });
     return;
   }
   if (!imageUrl) { res.status(400).json({ message: 'imageUrl is required' }); return; }
@@ -708,61 +625,17 @@ router.post('/ai/generate-3d', asyncHandler(async (req: Request, res: Response) 
     return;
   }
 
-  const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.MESHY_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      image_url: publicUrl,
-      ai_model:  'meshy-6',
-    }),
-  });
-
-  if (!r.ok) {
-    const body = await r.text();
-    let msg: string;
-    try { msg = (JSON.parse(body) as { message?: string })?.message || body; } catch { msg = body; }
-    res.status(502).json({ message: `Meshy error: ${msg}` });
-    return;
-  }
-
-  const data = await r.json() as { result?: string; task_id?: string };
-  const taskId = data.result ?? data.task_id;
-  if (!taskId) { res.status(502).json({ message: 'Meshy returned no task ID' }); return; }
+  const { taskId } = await falStart3D(publicUrl);
   res.json({ taskId });
 }));
 
-// ─── AI: Poll Meshy 3D Task Status ───────────────────────────────────────────
+// ─── AI: Poll fal.ai 3D Task Status ──────────────────────────────────────────
 router.get('/ai/3d-status/:taskId', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.MESHY_API_KEY) {
-    res.status(503).json({ message: 'MESHY_API_KEY not set' }); return;
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'FAL_KEY not set' }); return;
   }
-
-  const r = await fetch(`https://api.meshy.ai/v1/image-to-3d/${req.params.taskId}`, {
-    headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` },
-  });
-  if (!r.ok) {
-    const body = await r.text();
-    res.status(502).json({ message: `Meshy status error: ${body}` }); return;
-  }
-
-  const data = await r.json() as {
-    status: string; progress?: number;
-    model_urls?: { glb?: string; fbx?: string; obj?: string };
-    thumbnail_url?: string;
-    task_error?: { message: string };
-  };
-
-  const status = (data.status || '').toUpperCase();
-  if (status === 'SUCCEEDED' || status === 'COMPLETE' || status === 'COMPLETED') {
-    res.json({ status: 'completed', modelUrl: data.model_urls?.glb, previewUrl: data.thumbnail_url });
-  } else if (status === 'FAILED' || status === 'ERROR') {
-    res.json({ status: 'failed', error: data.task_error?.message || 'Generation failed' });
-  } else {
-    res.json({ status: 'processing', progress: data.progress ?? 0 });
-  }
+  const result = await falCheck3D(req.params.taskId);
+  res.json(result);
 }));
 
 // ─── Save 3D Model URL to Product ────────────────────────────────────────────
@@ -779,10 +652,9 @@ router.patch('/products/:id/model3d', asyncHandler(async (req: Request, res: Res
 
 // ─── Batch: Generate 3D models for all products without one ──────────────────
 router.post('/products/generate-3d', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.MESHY_API_KEY) {
-    res.status(503).json({ message: 'MESHY_API_KEY not configured' }); return;
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
   }
-  const MESHY_KEY = process.env.MESHY_API_KEY;
   const limit = Math.min(Number((req.query.limit as string) || 20), 50);
 
   const products = await Product.find({
@@ -793,7 +665,7 @@ router.post('/products/generate-3d', asyncHandler(async (req: Request, res: Resp
 
   res.json({ queued: products.length, message: `Queued ${products.length} products for 3D generation` });
 
-  // Run in background — sequentially to be gentle on the API
+  // Run in background — sequentially to avoid hammering the API
   setImmediate(async () => {
     let succeeded = 0; let failed = 0;
     for (const p of products) {
@@ -803,49 +675,33 @@ router.post('/products/generate-3d', asyncHandler(async (req: Request, res: Resp
         const publicUrl = await toPublicImageUrl(imgUrl).catch(() => null);
         if (!publicUrl) { failed++; continue; }
 
-        const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${MESHY_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_url: publicUrl, ai_model: 'meshy-6' }),
-        });
-        if (!r.ok) { failed++; continue; }
-        const data = await r.json() as { result?: string; task_id?: string };
-        const taskId = data.result ?? data.task_id;
-        if (!taskId) { failed++; continue; }
-
-        // Poll this task
+        // Submit to fal.ai Trellis and poll for completion
+        const { taskId } = await falStart3D(publicUrl);
         let done = false;
         for (let attempt = 0; attempt < 30 && !done; attempt++) {
-          await new Promise(res2 => setTimeout(res2, 10_000));
-          const sr = await fetch(`https://api.meshy.ai/v1/image-to-3d/${taskId}`, {
-            headers: { Authorization: `Bearer ${MESHY_KEY}` },
-          }).catch(() => null);
-          if (!sr?.ok) continue;
-          const sd = await sr.json() as { status: string; model_urls?: { glb?: string }; thumbnail_url?: string };
-          const s = (sd.status || '').toUpperCase();
-          if (s === 'SUCCEEDED' || s === 'COMPLETE' || s === 'COMPLETED') {
-            if (sd.model_urls?.glb) {
-              await Product.findByIdAndUpdate(p._id, {
-                model3dUrl: sd.model_urls.glb,
-                ...(sd.thumbnail_url ? { model3dPreview: sd.thumbnail_url } : {}),
-              });
-              succeeded++; done = true;
-            }
-          } else if (s === 'FAILED' || s === 'ERROR') {
+          await new Promise(r2 => setTimeout(r2, 10_000));
+          const sd = await falCheck3D(taskId);
+          if (sd.status === 'completed' && sd.modelUrl) {
+            await Product.findByIdAndUpdate(p._id, {
+              model3dUrl: sd.modelUrl,
+              ...(sd.previewUrl ? { model3dPreview: sd.previewUrl } : {}),
+            });
+            succeeded++; done = true;
+          } else if (sd.status === 'failed') {
             failed++; done = true;
           }
         }
         if (!done) failed++;
       } catch { failed++; }
     }
-    console.log(`[meshy] batch done — succeeded: ${succeeded}, failed: ${failed}`);
+    console.log(`[fal/trellis] batch done — succeeded: ${succeeded}, failed: ${failed}`);
   });
 }));
 
 // ─── Single: Generate 3D model for one product ───────────────────────────────
 router.post('/products/:id/generate-3d', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.MESHY_API_KEY) {
-    res.status(503).json({ message: 'MESHY_API_KEY not configured' }); return;
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
   }
   const product = await Product.findById(req.params.id);
   if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
@@ -855,29 +711,21 @@ router.post('/products/:id/generate-3d', asyncHandler(async (req: Request, res: 
   const publicUrl = await toPublicImageUrl(imgUrl).catch(() => null);
   if (!publicUrl) { res.status(502).json({ message: 'Could not fetch product image' }); return; }
 
-  const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image_url: publicUrl, ai_model: 'meshy-6' }),
-  });
-  if (!r.ok) { res.status(502).json({ message: 'Meshy API error' }); return; }
-  const data = await r.json() as { result?: string; task_id?: string };
-  const taskId = data.result ?? data.task_id;
-  if (!taskId) { res.status(502).json({ message: 'No task ID returned' }); return; }
+  const { taskId } = await falStart3D(publicUrl);
   res.json({ taskId, message: 'Generation started — model will appear on the product when ready' });
 }));
 
 // ─── Batch: Generate lifestyle photos for all products without one ────────────
 router.post('/products/generate-lifestyle', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.REPLICATE_API_TOKEN) {
-    res.status(503).json({ message: 'REPLICATE_API_TOKEN not configured' }); return;
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
   }
   const limit = Math.min(Number((req.query.limit as string) || 20), 50);
 
   const products = await Product.find({
     lifestyleImageUrl: { $exists: false },
     isActive: true,
-  }).limit(limit).select('_id name metalOptions').populate('category', 'slug');
+  }).limit(limit).select('_id name images metalOptions').populate('category', 'slug');
 
   res.json({ queued: products.length, message: `Queued ${products.length} products for lifestyle photo generation` });
 
@@ -887,30 +735,34 @@ router.post('/products/generate-lifestyle', asyncHandler(async (req: Request, re
       try {
         const catSlug = (p.category as unknown as { slug?: string })?.slug || '';
         const metal = p.metalOptions?.find(m => m.isDefault)?.type || p.metalOptions?.[0]?.type;
-        const url = await generateLifestylePhoto(p.name, catSlug, metal);
+        // Pass the real product image so the exact item is shown in the lifestyle photo
+        const productImageUrl = p.images?.[0] || undefined;
+        const url = await falGenerateLifestyle(p.name, catSlug, metal, productImageUrl);
         if (url) {
           await Product.findByIdAndUpdate(p._id, { lifestyleImageUrl: url });
           succeeded++;
         } else { failed++; }
       } catch { failed++; }
     }
-    console.log(`[replicate] batch done — succeeded: ${succeeded}, failed: ${failed}`);
+    console.log(`[fal] lifestyle batch done — succeeded: ${succeeded}, failed: ${failed}`);
   });
 }));
 
 // ─── Single: Generate lifestyle photo for one product ────────────────────────
 router.post('/products/:id/generate-lifestyle', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.REPLICATE_API_TOKEN) {
-    res.status(503).json({ message: 'REPLICATE_API_TOKEN not configured' }); return;
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
   }
   const product = await Product.findById(req.params.id).populate('category', 'slug');
   if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
 
   const catSlug = (product.category as unknown as { slug?: string })?.slug || '';
   const metal = product.metalOptions?.find(m => m.isDefault)?.type || product.metalOptions?.[0]?.type;
-  const url = await generateLifestylePhoto(product.name, catSlug, metal);
+  // Pass the real product image so fal.ai Kontext can show the EXACT product being worn
+  const productImageUrl = product.images?.[0] || undefined;
+  const url = await falGenerateLifestyle(product.name, catSlug, metal, productImageUrl);
 
-  if (!url) { res.status(502).json({ message: 'Lifestyle photo generation failed' }); return; }
+  if (!url) { res.status(502).json({ message: 'Lifestyle photo generation failed. Check server logs for the fal.ai error.' }); return; }
   await Product.findByIdAndUpdate(product._id, { lifestyleImageUrl: url });
   res.json({ lifestyleImageUrl: url });
 }));
