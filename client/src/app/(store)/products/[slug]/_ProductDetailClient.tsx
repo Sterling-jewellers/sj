@@ -267,7 +267,7 @@ function DiamondShapeIcon({ shape, active, size = 24 }: { shape: string; active:
 }
 
 // ─── Live pricing formula ─────────────────────────────────────────────────────
-type ProductExt = IProduct & { weightBySize?: { size: string; weightGrams: number }[]; bandStyle?: string; shankWidth?: string; competitorPrice?: number };
+type ProductExt = IProduct & { weightBySize?: { size: string; weightGrams: number }[]; bandStyle?: string; shankWidth?: string; competitorPrice?: number; sideImageUrl?: string; lifestyleImageUrl?: string };
 
 function computePrice(
   product: ProductExt,
@@ -386,9 +386,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   // If the selected metal has its own photos use them; otherwise fall back to
   // the base product images and apply a CSS filter to simulate the metal colour.
   const hasMetalImages = (activeMetal?.images?.length ?? 0) > 0;
-  const displayImages = hasMetalImages ? (activeMetal!.images) : (product?.images || []);
-  // Apply CSS filter only when showing base images for a non-default metal
-  const metalFilter = !hasMetalImages && activeMetal
+  const baseImages    = hasMetalImages ? (activeMetal!.images) : (product?.images || []);
+  // Append side view + lifestyle photos to the gallery if present
+  const extraImages = [product?.sideImageUrl, product?.lifestyleImageUrl].filter(Boolean) as string[];
+  const displayImages = extraImages.length ? [...baseImages, ...extraImages] : baseImages;
+  // Index of the lifestyle photo (for "Styled On" badge) — always last if present
+  const lifestyleIndex = product?.lifestyleImageUrl ? displayImages.length - 1 : -1;
+  // Apply CSS filter ONLY when user switches to a non-default metal that has no specific photos.
+  // Never filter the default metal — its base images ARE the real product photos.
+  const isDefaultMetal = activeMetal?.isDefault ?? true;
+  const metalFilter = !hasMetalImages && activeMetal && !isDefaultMetal
     ? (METAL_FILTERS[activeMetal.type] ?? 'none')
     : 'none';
 
@@ -723,34 +730,15 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           /* ══════════════ STANDARD LAYOUT ══════════════ */
           <div className="grid lg:grid-cols-2 gap-12">
 
-            {/* ── LEFT: Image Gallery ── */}
-            <div className="flex flex-col gap-4">
-            <div className="flex gap-4">
-              {/* Thumbnails */}
-              <div className="flex flex-col gap-2 w-20 flex-shrink-0">
-                {displayImages.map((img, i) => (
-                  <button key={i} onClick={() => setActiveImage(i)}
-                    className={cn('relative w-20 h-20 border-2 overflow-hidden flex-shrink-0 transition-all',
-                      i === activeImage ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300')}>
-                    <Image src={img} alt="" fill className="object-cover"
-                      style={{ filter: metalFilter, transition: 'filter 0.4s ease' }} />
-                  </button>
-                ))}
-                {product.model3dUrl && (
-                  <button onClick={() => setActiveImage(-1)}
-                    title="View 3D model"
-                    className={cn('relative w-20 h-20 border-2 overflow-hidden flex-shrink-0 transition-all flex items-center justify-center bg-gray-50',
-                      activeImage === -1 ? 'border-charcoal' : 'border-gray-100 hover:border-gray-300')}>
-                    {product.model3dPreview
-                      ? <Image src={product.model3dPreview} alt="3D" fill className="object-cover" />
-                      : <Box size={24} className="text-gray-400" />}
-                    <span className="absolute bottom-0.5 left-0 right-0 text-center text-[9px] font-sans font-semibold text-charcoal bg-white/80">3D</span>
-                  </button>
-                )}
-              </div>
+            {/* ── LEFT: Cartier-style image grid ── */}
+            <div className="flex flex-col gap-2">
 
-              {/* Main image / 3D viewer */}
-              <div className="relative flex-1 aspect-square bg-gray-50 overflow-hidden">
+              {/* Large main image */}
+              <div
+                className="relative w-full bg-gray-50 overflow-hidden cursor-pointer"
+                style={{ aspectRatio: '1 / 1' }}
+                onClick={() => setActiveImage(p => (p + 1) % displayImages.length)}
+              >
                 {activeImage === -1 && product.model3dUrl ? (
                   <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-sans">Loading 3D…</div>}>
                     <Ring3DViewer
@@ -766,32 +754,61 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       alt={product.name}
                       fill priority
                       className="object-cover"
-                      style={{ filter: metalFilter, transition: 'filter 0.4s ease' }}
+                      style={{ filter: lifestyleIndex >= 0 && activeImage === lifestyleIndex ? 'none' : metalFilter, transition: 'filter 0.4s ease' }}
                     />
-                    {metalFilter !== 'none' && (
+                    {metalFilter !== 'none' && (lifestyleIndex < 0 || activeImage !== lifestyleIndex) && (
                       <div className="absolute top-3 right-3 bg-white/85 backdrop-blur-sm border border-gray-100 rounded px-2 py-1 text-[10px] font-sans text-gray-500">
                         Colour preview
                       </div>
                     )}
+                    {product.isNewArrival && (
+                      <span className="absolute top-3 left-3 bg-charcoal text-white text-[9px] px-2 py-1 font-sans tracking-widest uppercase">New</span>
+                    )}
+                    {/* Lifestyle badge */}
+                    {lifestyleIndex >= 0 && activeImage === lifestyleIndex && (
+                      <span className="absolute top-3 left-3 bg-white/90 text-charcoal text-[9px] px-2 py-1 font-sans tracking-widest uppercase border border-gray-200">Styled On</span>
+                    )}
                   </>
-                )}
-                {displayImages.length > 1 && activeImage !== -1 && (
-                  <>
-                    <button onClick={() => setActiveImage(p => (p - 1 + displayImages.length) % displayImages.length)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
-                      <ChevronLeft size={16} />
-                    </button>
-                    <button onClick={() => setActiveImage(p => (p + 1) % displayImages.length)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 flex items-center justify-center shadow hover:bg-white">
-                      <ChevronRight size={16} />
-                    </button>
-                  </>
-                )}
-                {product.isNewArrival && activeImage !== -1 && (
-                  <span className="absolute top-3 left-3 bg-charcoal text-white text-[9px] px-2 py-1 font-sans tracking-widest uppercase">New</span>
                 )}
               </div>
-            </div>
+
+              {/* Grid of smaller images below — 2 columns like Cartier */}
+              {displayImages.length > 1 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {displayImages.map((img, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveImage(i)}
+                      className={cn(
+                        'relative w-full overflow-hidden transition-all',
+                        i === activeImage ? 'ring-2 ring-charcoal ring-offset-1' : 'hover:opacity-80',
+                      )}
+                      style={{ aspectRatio: '1 / 1' }}
+                    >
+                      <Image
+                        src={img} alt="" fill
+                        className="object-cover"
+                        style={{ filter: i === displayImages.length - 1 && product.lifestyleImageUrl ? 'none' : metalFilter, transition: 'filter 0.4s ease' }}
+                      />
+                    </button>
+                  ))}
+                  {product.model3dUrl && (
+                    <button
+                      onClick={() => setActiveImage(-1)}
+                      className={cn(
+                        'relative w-full overflow-hidden transition-all flex items-center justify-center bg-gray-50',
+                        activeImage === -1 ? 'ring-2 ring-charcoal ring-offset-1' : 'hover:opacity-80',
+                      )}
+                      style={{ aspectRatio: '1 / 1' }}
+                    >
+                      {product.model3dPreview
+                        ? <Image src={product.model3dPreview} alt="3D" fill className="object-cover" />
+                        : <Box size={32} className="text-gray-400" />}
+                      <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] font-sans font-semibold text-charcoal bg-white/80 py-0.5">3D View</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* ── RIGHT: Product Info ── */}
@@ -937,6 +954,48 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 ))}
               </div>
+
+              {/* ── Metal & Purity Highlight ── */}
+              {product.metalOptions.length > 0 && (
+                <div className="mt-5 border border-gray-100 p-4 bg-gray-50/40">
+                  <p className="text-[10px] font-sans font-bold tracking-[0.18em] uppercase text-gold-600 mb-3">Metal &amp; Purity</p>
+                  <div className="space-y-2">
+                    {product.metalOptions.map(m => (
+                      <div key={`${m.type}-${m.karat}`} className="flex items-center gap-2.5">
+                        <div className="w-4 h-4 rounded-full border border-gray-200 flex-shrink-0" style={{ background: METAL_COLOURS[m.type] || '#ccc' }} />
+                        <span className="text-xs font-sans text-charcoal font-medium">
+                          {m.karat ? `${m.karat} ` : ''}{METAL_LABELS[m.type] || m.type}
+                        </span>
+                        {m.karat && (
+                          <span className="text-[10px] font-sans text-gray-400 ml-auto">
+                            {m.karat === '9ct' ? '37.5%' : m.karat === '14ct' ? '58.3%' : m.karat === '18ct' ? '75.0%' : m.karat === '22ct' ? '91.7%' : ''} pure
+                          </span>
+                        )}
+                        {m.type === 'platinum' && <span className="text-[10px] font-sans text-gray-400 ml-auto">Pt950</span>}
+                        {m.type === 'silver' && <span className="text-[10px] font-sans text-gray-400 ml-auto">925</span>}
+                      </div>
+                    ))}
+                  </div>
+                  {product.gemstone && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                      <Gem size={12} className="text-gold-500 flex-shrink-0" />
+                      <span className="text-xs font-sans text-charcoal capitalize">{product.gemstone === 'cubic-zirconia' ? 'Cubic Zirconia (CZ)' : product.gemstone}</span>
+                      {product.settingType && <span className="text-[10px] font-sans text-gray-400 ml-auto">{SETTING_LABELS[product.settingType] || product.settingType} set</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Book an Appointment CTA ── */}
+              <div className="mt-4 bg-navy text-white p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-sans font-semibold tracking-wider uppercase text-gold-300 mb-0.5">Need Help Choosing?</p>
+                  <p className="text-[11px] font-sans text-white/70">Book a free in-store or virtual consultation</p>
+                </div>
+                <Link href="/book-appointment" className="flex-shrink-0 text-[11px] font-sans font-semibold text-gold-300 hover:text-gold-200 transition-colors whitespace-nowrap ml-4">
+                  Book Now →
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -964,40 +1023,185 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               <div className="max-w-2xl prose prose-sm font-sans text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription }} />
             )}
             {activeTab === 'details' && (
-              <dl className="max-w-lg divide-y divide-gray-100">
-                {[
-                  { label: 'Style', value: product.style },
-                  { label: 'Setting Type', value: product.settingType ? (SETTING_LABELS[product.settingType] || product.settingType) : undefined },
-                  { label: 'Band Style', value: product.bandStyle ? (BAND_LABELS[product.bandStyle] || product.bandStyle) : undefined },
-                  { label: 'Shank Width', value: product.shankWidth ? (SHANK_LABELS[product.shankWidth] || product.shankWidth) : undefined },
-                  { label: 'Gemstone', value: product.gemstone },
-                  { label: 'Weight', value: product.weight ? `${product.weight}g` : undefined },
-                  { label: 'Engravable', value: product.isEngravable ? 'Yes, free of charge' : 'No' },
-                  { label: 'Delivery', value: `${product.deliveryDays} working days` },
-                ].filter(d => d.value).map(({ label, value }) => (
-                  <div key={label} className="flex py-3">
-                    <dt className="w-40 text-xs font-sans font-medium tracking-widest uppercase text-gray-400">{label}</dt>
-                    <dd className="text-sm font-sans text-charcoal">{value}</dd>
+              <div className="max-w-2xl space-y-10">
+                {/* Metal & Materials */}
+                {product.metalOptions.length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Metal &amp; Materials</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {product.metalOptions.map(m => (
+                        <div key={`${m.type}-${m.karat}`} className="border border-gray-100 p-4 rounded-sm bg-gray-50/50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded-full border border-gray-200 shadow-sm flex-shrink-0" style={{ background: METAL_COLOURS[m.type] || '#ccc' }} />
+                            <span className="text-xs font-sans font-semibold text-charcoal">
+                              {m.karat ? `${m.karat} ` : ''}{METAL_LABELS[m.type] || m.type}
+                            </span>
+                          </div>
+                          {m.karat && (
+                            <p className="text-[11px] font-sans text-gray-500">
+                              {m.karat === '9ct' && '37.5% pure gold alloy'}
+                              {m.karat === '14ct' && '58.3% pure gold alloy'}
+                              {m.karat === '18ct' && '75.0% pure gold alloy'}
+                              {(m.karat as string) === '22ct' && '91.7% pure gold alloy'}
+                              {(m.karat as string) === '24ct' && '99.9% pure gold'}
+                              {!['9ct','14ct','18ct','22ct','24ct'].includes(m.karat as string) && `${m.karat} gold`}
+                            </p>
+                          )}
+                          {m.type === 'platinum' && <p className="text-[11px] font-sans text-gray-500">95% pure platinum (Pt950)</p>}
+                          {m.type === 'silver' && <p className="text-[11px] font-sans text-gray-500">925 sterling silver</p>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </dl>
+                )}
+
+                {/* Gemstone & Diamond Details */}
+                {product.gemstone && (
+                  <div>
+                    <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Stone Details</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-start gap-3">
+                        <Gem size={16} className="text-gold-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs font-sans font-semibold text-charcoal capitalize">{product.gemstone === 'cubic-zirconia' ? 'Cubic Zirconia (CZ)' : product.gemstone}</p>
+                          <p className="text-[11px] font-sans text-gray-500 mt-0.5">
+                            {product.gemstone === 'diamond' && 'Natural or lab-grown diamond, expertly set for maximum brilliance'}
+                            {product.gemstone === 'cubic-zirconia' && 'High-clarity CZ with diamond-like brilliance'}
+                            {product.gemstone === 'sapphire' && 'Natural sapphire, deep blue colour'}
+                            {product.gemstone === 'ruby' && 'Natural ruby, vibrant red colour'}
+                            {product.gemstone === 'emerald' && 'Natural emerald, vivid green colour'}
+                            {product.gemstone === 'pearl' && 'Cultured freshwater pearl'}
+                          </p>
+                        </div>
+                      </div>
+                      {product.settingType && (
+                        <div className="flex items-start gap-3">
+                          <Award size={16} className="text-gold-500 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-sans font-semibold text-charcoal">{SETTING_LABELS[product.settingType] || product.settingType} Setting</p>
+                            <p className="text-[11px] font-sans text-gray-500 mt-0.5">
+                              {product.settingType === 'four-claw' && 'Four-point claw holds the stone securely while maximising light return'}
+                              {product.settingType === 'six-claw' && 'Six-claw Tiffany-style — the most secure setting for round brilliant diamonds'}
+                              {product.settingType === 'bezel' && 'Full metal surround — sleek, modern and very secure'}
+                              {product.settingType === 'pave' && 'Tiny diamonds set flush in the metal create a continuous sparkle effect'}
+                              {product.settingType === 'halo' && 'Halo of small diamonds amplifies the visual size of the centre stone'}
+                              {product.settingType === 'channel' && 'Stones set inside a channel — smooth, snag-free and elegant'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* About this piece */}
+                <div>
+                  <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">About This Piece</h3>
+                  <div className="prose prose-sm font-sans text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription }} />
+                </div>
+
+                {/* Full spec table */}
+                <div>
+                  <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Full Specifications</h3>
+                  <dl className="divide-y divide-gray-100">
+                    {[
+                      { label: 'Style',        value: product.style },
+                      { label: 'Setting',      value: product.settingType ? (SETTING_LABELS[product.settingType] || product.settingType) : undefined },
+                      { label: 'Band Style',   value: product.bandStyle ? (BAND_LABELS[product.bandStyle] || product.bandStyle) : undefined },
+                      { label: 'Shank Width',  value: product.shankWidth ? (SHANK_LABELS[product.shankWidth] || product.shankWidth) : undefined },
+                      { label: 'Gemstone',     value: product.gemstone },
+                      { label: 'Weight',       value: product.weight ? `${product.weight}g` : undefined },
+                      { label: 'Engravable',   value: product.isEngravable ? 'Yes — free personalisation' : 'No' },
+                      { label: 'Hallmarked',   value: 'Yes — UK assay office hallmark' },
+                      { label: 'Origin',       value: 'Handcrafted in the UK' },
+                      { label: 'Delivery',     value: `${product.deliveryDays} working days` },
+                    ].filter(d => d.value).map(({ label, value }) => (
+                      <div key={label} className="flex py-3">
+                        <dt className="w-44 text-[11px] font-sans font-medium tracking-wider uppercase text-gray-400">{label}</dt>
+                        <dd className="text-sm font-sans text-charcoal capitalize">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+
+                {/* Craftsmanship */}
+                <div className="bg-navy/[0.03] border border-navy/10 p-6">
+                  <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-navy mb-3">Our Promise</h3>
+                  <ul className="space-y-2.5">
+                    {[
+                      'Every piece is individually hallmarked by a UK assay office',
+                      'Rhodium plating on white gold for lasting brilliance',
+                      'Conflict-free diamonds — ethically sourced and certified',
+                      'Lifetime craftsmanship guarantee on all jewellery',
+                      '30-day returns — no questions asked',
+                    ].map(t => (
+                      <li key={t} className="flex items-start gap-2.5 text-xs font-sans text-gray-600">
+                        <span className="text-gold-500 mt-0.5 flex-shrink-0">✦</span>{t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             )}
             {activeTab === 'reviews' && (
-              <div className="space-y-6 max-w-2xl">
-                {reviews.length === 0 ? <p className="text-sm font-sans text-gray-500">No reviews yet.</p> : reviews.map(r => (
-                  <article key={r._id} className="border-b border-gray-100 pb-6">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-sans font-medium text-charcoal">{r.user.firstName} {r.user.lastName}</p>
-                        <p className="text-xs text-gray-400">{formatDate(r.createdAt)}</p>
+              <div className="max-w-2xl">
+                {reviews.length === 0 ? (
+                  <p className="text-sm font-sans text-gray-500">No reviews yet. Be the first to review this product.</p>
+                ) : (
+                  <>
+                    {/* Rating summary */}
+                    <div className="flex items-center gap-8 pb-8 mb-8 border-b border-gray-100">
+                      <div className="text-center">
+                        <p className="font-serif text-5xl font-light text-charcoal leading-none">{product.averageRating?.toFixed(1) || (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}</p>
+                        <div className="flex gap-0.5 justify-center mt-2">{Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className={i < Math.round(product.averageRating || 0) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />)}</div>
+                        <p className="text-[11px] font-sans text-gray-400 mt-1">{reviews.length} reviews</p>
                       </div>
-                      <div className="flex gap-0.5">{Array.from({ length: 5 }).map((_, i) => <Star key={i} size={12} className={i < r.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />)}</div>
+                      <div className="flex-1 space-y-1.5">
+                        {[5,4,3,2,1].map(star => {
+                          const count = reviews.filter(r => r.rating === star).length;
+                          const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+                          return (
+                            <div key={star} className="flex items-center gap-2">
+                              <span className="text-[11px] font-sans text-gray-400 w-3">{star}</span>
+                              <Star size={10} className="text-amber-400 fill-amber-400 flex-shrink-0" />
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-[11px] font-sans text-gray-400 w-4 text-right">{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="font-sans font-medium text-sm text-charcoal mb-1">{r.title}</p>
-                    <p className="text-sm font-sans text-gray-600">{r.body}</p>
-                    {r.isVerifiedPurchase && <span className="text-xs text-green-600 mt-1 block">✓ Verified Purchase</span>}
-                  </article>
-                ))}
+
+                    {/* Individual reviews */}
+                    <div className="space-y-6">
+                      {reviews.map(r => (
+                        <article key={r._id} className="border-b border-gray-100 pb-6 last:border-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-sans font-semibold text-charcoal">{r.user.firstName} {r.user.lastName?.charAt(0)}.</p>
+                                {r.isVerifiedPurchase && (
+                                  <span className="flex items-center gap-1 text-[10px] font-sans font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                    <span>✓</span> Verified Purchase
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-gray-400 mt-0.5">{formatDate(r.createdAt)}</p>
+                            </div>
+                            <div className="flex gap-0.5">{Array.from({ length: 5 }).map((_, i) => <Star key={i} size={13} className={i < r.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />)}</div>
+                          </div>
+                          <p className="font-sans font-semibold text-sm text-charcoal mb-1.5">{r.title}</p>
+                          <p className="text-sm font-sans text-gray-600 leading-relaxed">{r.body}</p>
+                          {(r.helpfulVotes ?? 0) > 0 && (
+                            <p className="text-[11px] font-sans text-gray-400 mt-2">{r.helpfulVotes} {r.helpfulVotes === 1 ? 'person' : 'people'} found this helpful</p>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {activeTab === '3d' && product.model3dUrl && (
@@ -1018,29 +1222,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             )}
           </div>
         </div>
-
-        {/* ── Styled On ── */}
-        {product.lifestyleImageUrl && (
-          <section className="mt-8 pt-12 border-t border-gray-200">
-            <div className="text-center mb-8">
-              <p className="section-subtitle mb-2">Worn in Real Life</p>
-              <h2 className="section-title">See How It Looks</h2>
-              <div className="gold-divider mt-3" />
-            </div>
-            <div className="max-w-lg mx-auto relative aspect-[3/4] overflow-hidden">
-              <Image
-                src={product.lifestyleImageUrl}
-                alt={`${product.name} lifestyle photo`}
-                fill
-                className="object-cover"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-charcoal/60 to-transparent p-6">
-                <p className="font-serif text-white text-lg font-light">{product.name}</p>
-                <p className="text-xs font-sans text-gold-300 tracking-widest uppercase mt-1">AI-styled visualisation</p>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* ── Related ── */}
         {related.length > 0 && (

@@ -13,12 +13,12 @@ const posts = [
 export default function InstagramGallery() {
   return (
     <section className="py-0">
-      <div className="text-center py-10 bg-champagne">
+      <div className="text-center py-10 bg-navy">
         <div className="flex items-center justify-center gap-2 mb-1">
-          <Instagram size={20} className="text-gold-500" />
-          <a href="#" className="font-sans text-sm font-medium tracking-widest uppercase text-gold-600 hover:text-gold-700">@sterlingjewellers</a>
+          <Instagram size={20} className="text-white/80" />
+          <a href="#" className="font-sans text-sm font-medium tracking-widest uppercase text-white hover:text-white/70">@sterlingjewellers</a>
         </div>
-        <p className="text-xs font-sans text-gray-500">Follow us for daily inspiration</p>
+        <p className="text-xs font-sans text-white/60">Follow us for daily inspiration</p>
       </div>
       <div className="grid grid-cols-3 md:grid-cols-6">
         {posts.map((src, i) => (

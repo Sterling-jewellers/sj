@@ -22,8 +22,8 @@ export default function WhyChooseUs() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
           {features.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="text-center group">
-              <div className="w-16 h-16 border border-gold-300 flex items-center justify-center mx-auto mb-5 group-hover:bg-gold-50 group-hover:border-gold-500 transition-colors">
-                <Icon size={24} className="text-gold-500" />
+              <div className="w-16 h-16 border border-gray-200 flex items-center justify-center mx-auto mb-5 group-hover:bg-[#F0F4F8] group-hover:border-navy transition-colors">
+                <Icon size={24} className="text-navy" />
               </div>
               <h3 className="font-sans font-semibold text-sm tracking-wide text-charcoal mb-2">{title}</h3>
               <p className="text-xs font-sans text-gray-500 leading-relaxed">{desc}</p>

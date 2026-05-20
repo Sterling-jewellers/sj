@@ -5,7 +5,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { adminApi, categoriesApi, goldPriceApi } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, X, Sparkles, Loader2, Wand2, Box, RefreshCw, Camera } from 'lucide-react';
+import { Plus, Trash2, X, Sparkles, Loader2, Wand2, RefreshCw, Camera, ScanSearch } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface WeightBySize { size: string; weightGrams: number; }
@@ -61,17 +61,16 @@ export default function ProductForm({ productId }: { productId?: string }) {
   const [metalImgLoading, setMetalImgLoading] = useState<Record<number, boolean>>({});
   const [metalImgDone, setMetalImgDone] = useState<Record<number, string>>({});  // idx → generated url
 
-  // ── 3D Model state ───────────────────────────────────────────────────────
-  const [gen3DLoading, setGen3DLoading] = useState(false);
-  const [gen3DProgress, setGen3DProgress] = useState(0);
-  const [gen3DStatus, setGen3DStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
-  const [gen3DModelUrl, setGen3DModelUrl] = useState('');
-  const [gen3DPreviewUrl, setGen3DPreviewUrl] = useState('');
+  // ── Side View Photo state ────────────────────────────────────────────────
+  const [genSideLoading, setGenSideLoading] = useState(false);
+  const [genSideStatus, setGenSideStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
+  const [genSideUrl, setGenSideUrl] = useState('');
 
   // ── Lifestyle Photo state ─────────────────────────────────────────────────
   const [genLifestyleLoading, setGenLifestyleLoading] = useState(false);
   const [genLifestyleStatus, setGenLifestyleStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
   const [genLifestyleUrl, setGenLifestyleUrl] = useState('');
+  const [lifestyleUploadLoading, setLifestyleUploadLoading] = useState(false);
 
   const { data: catData } = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.getAll() });
   const categories = catData?.data || [];
@@ -276,57 +275,29 @@ export default function ProductForm({ productId }: { productId?: string }) {
     }
   };
 
-  // ── AI: Generate 3D model via Meshy.ai ───────────────────────────────────
-  const handleGenerate3D = async () => {
-    if (!productId) { toast.error('Save the product first, then generate a 3D model'); return; }
-    const baseImages = watch('images');
-    const imageUrl = baseImages[0]?.url;
-    if (!imageUrl) { toast.error('Add at least one product image URL first'); return; }
-
-    setGen3DLoading(true);
-    setGen3DStatus('processing');
-    setGen3DProgress(0);
-
+  // ── AI: Generate side-view photo via Gemini ─────────────────────────────
+  const handleGenerateSideView = async () => {
+    if (!productId) { toast.error('Save the product first'); return; }
+    setGenSideLoading(true);
+    setGenSideStatus('processing');
     try {
-      const startRes = await adminApi.generate3D({ imageUrl });
-      const { taskId } = startRes.data as { taskId: string };
-
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        if (attempts > 60) { clearInterval(poll); setGen3DLoading(false); setGen3DStatus('failed'); toast.error('3D generation timed out'); return; }
-        try {
-          const statusRes = await adminApi.check3DStatus(taskId);
-          const d = statusRes.data as { status: string; progress?: number; modelUrl?: string; previewUrl?: string; error?: string };
-          if (d.status === 'completed' && d.modelUrl) {
-            clearInterval(poll);
-            await adminApi.saveModel3D(productId, { model3dUrl: d.modelUrl, model3dPreview: d.previewUrl });
-            setGen3DModelUrl(d.modelUrl);
-            setGen3DPreviewUrl(d.previewUrl || '');
-            setGen3DStatus('completed');
-            setGen3DLoading(false);
-            toast.success('3D model generated and saved!');
-          } else if (d.status === 'failed') {
-            clearInterval(poll);
-            setGen3DStatus('failed');
-            setGen3DLoading(false);
-            toast.error(d.error || '3D generation failed');
-          } else {
-            setGen3DProgress(d.progress ?? 0);
-          }
-        } catch { /* ignore */ }
-      }, 5000);
+      const res = await adminApi.generateSideView(productId);
+      const { sideImageUrl } = res.data as { sideImageUrl: string };
+      setGenSideUrl(sideImageUrl);
+      setGenSideStatus('completed');
+      toast.success('Side view photo generated and saved!');
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to start 3D generation';
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Side view generation failed';
       toast.error(msg);
-      setGen3DLoading(false);
-      setGen3DStatus('idle');
+      setGenSideStatus('failed');
+    } finally {
+      setGenSideLoading(false);
     }
   };
 
-  // ── AI: Generate lifestyle photo via Replicate ───────────────────────────
+  // ── AI: Generate lifestyle photo via Gemini ──────────────────────────────
   const handleGenerateLifestyle = async () => {
-    if (!productId) { toast.error('Save the product first, then generate a lifestyle photo'); return; }
+    if (!productId) { toast.error('Save the product first'); return; }
     setGenLifestyleLoading(true);
     setGenLifestyleStatus('processing');
     try {
@@ -341,6 +312,27 @@ export default function ProductForm({ productId }: { productId?: string }) {
       setGenLifestyleStatus('failed');
     } finally {
       setGenLifestyleLoading(false);
+    }
+  };
+
+  // ── Manual lifestyle photo upload ────────────────────────────────────────
+  const handleLifestyleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !productId) return;
+    setLifestyleUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await adminApi.uploadLifestylePhoto(productId, formData);
+      const { lifestyleImageUrl } = res.data as { lifestyleImageUrl: string };
+      setGenLifestyleUrl(lifestyleImageUrl);
+      setGenLifestyleStatus('completed');
+      toast.success('Lifestyle photo uploaded and saved!');
+    } catch {
+      toast.error('Upload failed — please try again');
+    } finally {
+      setLifestyleUploadLoading(false);
+      e.target.value = '';
     }
   };
 
@@ -759,115 +751,82 @@ export default function ProductForm({ productId }: { productId?: string }) {
           )}
         </section>
 
-        {/* ── 3D Model Generator ── */}
+        {/* ── Side View Photo ── */}
         {isEdit && (
           <section className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Box size={16} className="text-indigo-500" />
-                  3D Model
+                  <ScanSearch size={16} className="text-indigo-500" />
+                  Side View Photo
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Upload front/side/back photos and generate an interactive 3D model via Meshy.ai.
-                  Customers can rotate it on the product page and view it in AR on mobile.
+                  AI generates a 45° side-angle studio photo of the exact same product using Gemini. Shown in the product image gallery.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={handleGenerate3D}
-                disabled={gen3DLoading}
+                onClick={handleGenerateSideView}
+                disabled={genSideLoading}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-lg hover:opacity-90 disabled:opacity-60 transition-opacity whitespace-nowrap"
               >
-                {gen3DLoading
-                  ? <><Loader2 size={14} className="animate-spin" /> Generating {gen3DProgress}%</>
-                  : gen3DStatus === 'completed'
-                  ? <><RefreshCw size={14} /> Regenerate 3D</>
-                  : <><Box size={14} /> Generate 3D Model</>}
+                {genSideLoading
+                  ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
+                  : genSideStatus === 'completed'
+                  ? <><RefreshCw size={14} /> Regenerate</>
+                  : <><ScanSearch size={14} /> Generate Side View</>}
               </button>
             </div>
 
-            {/* Progress bar */}
-            {gen3DLoading && (
-              <div className="mb-4">
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-indigo-400 to-blue-500 transition-all duration-500 rounded-full"
-                    style={{ width: `${gen3DProgress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Processing your images with Meshy.ai — this typically takes 2–5 minutes…</p>
-              </div>
+            {genSideLoading && (
+              <p className="text-xs text-gray-500 animate-pulse mb-3">Gemini is generating a side-angle view — usually takes 10–30 seconds…</p>
             )}
 
-            {/* Completed state */}
-            {gen3DStatus === 'completed' && gen3DModelUrl && (
-              <div className="flex items-start gap-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                {gen3DPreviewUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={gen3DPreviewUrl} alt="3D preview" className="w-20 h-20 object-cover rounded border border-green-300" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-green-800">3D model generated and saved ✓</p>
-                  <p className="text-xs text-green-600 mt-0.5 break-all">{gen3DModelUrl}</p>
-                  <a href={gen3DModelUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
-                    Preview GLB file ↗
+            {genSideStatus === 'completed' && genSideUrl && (
+              <div className="flex items-start gap-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={genSideUrl} alt="Side view" className="w-24 h-24 object-cover rounded border border-indigo-300 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-indigo-800">Side view photo saved ✓</p>
+                  <a href={genSideUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                    View full image ↗
                   </a>
                 </div>
               </div>
             )}
 
-            {gen3DStatus === 'failed' && (
+            {genSideStatus === 'failed' && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                3D generation failed. Check that <code className="bg-red-100 px-1 rounded">MESHY_API_KEY</code> is set in server/.env and the image URL is publicly accessible.
+                Generation failed. Make sure <code className="bg-red-100 px-1 rounded">GEMINI_API_KEY</code> is set and the product has at least one image URL.
               </p>
             )}
 
-            {gen3DStatus === 'idle' && (
-              <div className="text-xs text-gray-400 space-y-1">
-                <p>• Use the first product image URL as the base (front view recommended)</p>
-                <p>• For best results use a clean studio photo on a white background</p>
-                <p>• Requires <code className="bg-gray-100 px-1 rounded">MESHY_API_KEY</code> in server/.env — free tier available at meshy.ai</p>
-              </div>
+            {genSideStatus === 'idle' && (
+              <p className="text-xs text-gray-400">
+                Uses the first product image as the reference. Best results with a clean white-background studio photo.
+              </p>
             )}
           </section>
         )}
 
-        {/* ── Lifestyle Photo Generator ── */}
+        {/* ── Lifestyle Photo ── */}
         {isEdit && (
           <section className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Camera size={16} className="text-pink-500" />
-                  Lifestyle Photo
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  AI-generate a "worn" lifestyle image — ring on finger, necklace on neck, etc.
-                  Shown as a "Styled On" section on the product page.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleGenerateLifestyle}
-                disabled={genLifestyleLoading}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg hover:opacity-90 disabled:opacity-60 transition-opacity whitespace-nowrap"
-              >
-                {genLifestyleLoading
-                  ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
-                  : genLifestyleStatus === 'completed'
-                  ? <><RefreshCw size={14} /> Regenerate Photo</>
-                  : <><Camera size={14} /> Generate Lifestyle Photo</>}
-              </button>
-            </div>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-1">
+              <Camera size={16} className="text-pink-500" />
+              Lifestyle Photo
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Show the product being worn. Upload your own photo (best quality) or let Gemini AI generate one.
+            </p>
 
+            {/* Current lifestyle photo preview */}
             {genLifestyleStatus === 'completed' && genLifestyleUrl && (
-              <div className="flex items-start gap-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+              <div className="flex items-start gap-4 p-3 bg-pink-50 border border-pink-200 rounded-lg mb-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={genLifestyleUrl} alt="Lifestyle preview" className="w-24 h-24 object-cover rounded border border-pink-300" />
-                <div>
-                  <p className="text-sm font-medium text-pink-800">Lifestyle photo generated and saved ✓</p>
-                  <p className="text-xs text-pink-600 mt-0.5 break-all">{genLifestyleUrl}</p>
+                <img src={genLifestyleUrl} alt="Lifestyle photo" className="w-24 h-24 object-cover rounded border border-pink-300 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-pink-800">Lifestyle photo saved ✓</p>
                   <a href={genLifestyleUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
                     View full image ↗
                   </a>
@@ -875,19 +834,45 @@ export default function ProductForm({ productId }: { productId?: string }) {
               </div>
             )}
 
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-3">
+              {/* ── Upload (primary) ── */}
+              <label className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition-opacity whitespace-nowrap
+                ${lifestyleUploadLoading ? 'bg-gray-100 text-gray-400 pointer-events-none' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                {lifestyleUploadLoading
+                  ? <><Loader2 size={14} className="animate-spin" /> Uploading…</>
+                  : <><Camera size={14} /> Upload Lifestyle Photo</>}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLifestyleUpload}
+                  disabled={lifestyleUploadLoading}
+                />
+              </label>
+
+              {/* ── AI Generate (secondary) ── */}
+              <button
+                type="button"
+                onClick={handleGenerateLifestyle}
+                disabled={genLifestyleLoading || lifestyleUploadLoading}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-pink-300 text-pink-600 bg-pink-50 rounded-lg hover:bg-pink-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {genLifestyleLoading
+                  ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
+                  : <><Sparkles size={14} /> Try AI Generate</>}
+              </button>
+            </div>
+
             {genLifestyleStatus === 'failed' && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                Lifestyle generation failed. Check that <code className="bg-red-100 px-1 rounded">REPLICATE_API_TOKEN</code> is set in server/.env.
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3 mt-3">
+                AI generation failed. Try uploading a photo manually instead.
               </p>
             )}
 
-            {genLifestyleStatus === 'idle' && (
-              <div className="text-xs text-gray-400 space-y-1">
-                <p>• Generates a photorealistic AI image of the jewellery being worn</p>
-                <p>• Category-aware: rings → on finger, earrings → on ear, necklaces → on neck</p>
-                <p>• Requires <code className="bg-gray-100 px-1 rounded">REPLICATE_API_TOKEN</code> in server/.env</p>
-              </div>
-            )}
+            <p className="text-xs text-gray-400 mt-3">
+              💡 Best results: photograph the product being worn, then upload. AI generation may not always match the exact product.
+            </p>
           </section>
         )}
       </div>

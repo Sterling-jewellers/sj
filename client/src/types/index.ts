@@ -170,5 +170,6 @@ export interface IReview {
   title: string;
   body: string;
   isVerifiedPurchase: boolean;
+  helpfulVotes?: number;
   createdAt: string;
 }

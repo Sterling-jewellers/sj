@@ -4,18 +4,21 @@ import asyncHandler from 'express-async-handler';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { v2 as cloudinary } from 'cloudinary';
-import { generateProductContent, estimateCompetitorPrice as geminiEstimatePrice } from '../services/gemini.service';
 import {
-  generateLifestylePhoto as falGenerateLifestyle,
+  generateProductContent,
+  estimateCompetitorPrice as geminiEstimatePrice,
+  generateProductSideView,
+  generateLifestylePhoto as geminiGenerateLifestyle,
+} from '../services/gemini.service';
+import {
   generateMetalVariantImage,
   checkMetalVariantStatus,
-  start3DGeneration as falStart3D,
-  check3DStatus as falCheck3D,
 } from '../services/fal.service';
 import Order from '../models/Order.model';
 import Product from '../models/Product.model';
 import Diamond from '../models/Diamond.model';
 import User from '../models/User.model';
+import Review from '../models/Review.model';
 import Coupon from '../models/Coupon.model';
 import Category from '../models/Category.model';
 import { protect, adminOnly } from '../middleware/auth.middleware';
@@ -607,162 +610,119 @@ async function uploadHanronImageToCloudinary(imageUrl: string): Promise<string> 
   }
 }
 
-// ─── AI: Start 3D Model Generation (fal.ai Trellis image-to-3d) ──────────────
-router.post('/ai/generate-3d', asyncHandler(async (req: Request, res: Response) => {
-  const { imageUrl } = req.body as { imageUrl: string };
-
-  if (!process.env.FAL_KEY) {
-    res.status(503).json({ message: '3D generation not configured — add FAL_KEY to server/.env' });
-    return;
-  }
-  if (!imageUrl) { res.status(400).json({ message: 'imageUrl is required' }); return; }
-
-  let publicUrl: string;
-  try {
-    publicUrl = await toPublicImageUrl(imageUrl);
-  } catch (e) {
-    res.status(502).json({ message: `Could not retrieve image: ${(e as Error).message}` });
-    return;
-  }
-
-  const { taskId } = await falStart3D(publicUrl);
-  res.json({ taskId });
-}));
-
-// ─── AI: Poll fal.ai 3D Task Status ──────────────────────────────────────────
-router.get('/ai/3d-status/:taskId', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.FAL_KEY) {
-    res.status(503).json({ message: 'FAL_KEY not set' }); return;
-  }
-  const result = await falCheck3D(req.params.taskId);
-  res.json(result);
-}));
-
-// ─── Save 3D Model URL to Product ────────────────────────────────────────────
-router.patch('/products/:id/model3d', asyncHandler(async (req: Request, res: Response) => {
-  const { model3dUrl, model3dPreview } = req.body as { model3dUrl: string; model3dPreview?: string };
-  const product = await Product.findByIdAndUpdate(
-    req.params.id,
-    { model3dUrl, ...(model3dPreview && { model3dPreview }) },
-    { new: true },
-  );
-  if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
-  res.json({ success: true, model3dUrl: product.model3dUrl });
-}));
-
-// ─── Batch: Generate 3D models for all products without one ──────────────────
-router.post('/products/generate-3d', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.FAL_KEY) {
-    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
-  }
-  const limit = Math.min(Number((req.query.limit as string) || 20), 50);
-
-  const products = await Product.find({
-    model3dUrl: { $exists: false },
-    isActive: true,
-    $expr: { $gt: [{ $size: { $ifNull: ['$images', []] } }, 0] },
-  }).limit(limit).select('_id name images category');
-
-  res.json({ queued: products.length, message: `Queued ${products.length} products for 3D generation` });
-
-  // Run in background — sequentially to avoid hammering the API
-  setImmediate(async () => {
-    let succeeded = 0; let failed = 0;
-    for (const p of products) {
-      try {
-        const imgUrl = p.images?.[0];
-        if (!imgUrl?.startsWith('http')) { failed++; continue; }
-        const publicUrl = await toPublicImageUrl(imgUrl).catch(() => null);
-        if (!publicUrl) { failed++; continue; }
-
-        // Submit to fal.ai Trellis and poll for completion
-        const { taskId } = await falStart3D(publicUrl);
-        let done = false;
-        for (let attempt = 0; attempt < 30 && !done; attempt++) {
-          await new Promise(r2 => setTimeout(r2, 10_000));
-          const sd = await falCheck3D(taskId);
-          if (sd.status === 'completed' && sd.modelUrl) {
-            await Product.findByIdAndUpdate(p._id, {
-              model3dUrl: sd.modelUrl,
-              ...(sd.previewUrl ? { model3dPreview: sd.previewUrl } : {}),
-            });
-            succeeded++; done = true;
-          } else if (sd.status === 'failed') {
-            failed++; done = true;
-          }
-        }
-        if (!done) failed++;
-      } catch { failed++; }
-    }
-    console.log(`[fal/trellis] batch done — succeeded: ${succeeded}, failed: ${failed}`);
+/** Upload a base64-encoded image buffer to Cloudinary and return the secure URL */
+async function uploadBase64ToCloudinary(base64: string, mimeType: string, folder: string): Promise<string> {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
   });
-}));
+  const buffer = Buffer.from(base64, 'base64');
+  return new Promise<string>((resolve, reject) => {
+    const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'image', format: ext },
+      (err, res) => (err ? reject(err) : resolve((res as { secure_url: string }).secure_url)),
+    );
+    stream.end(buffer);
+  });
+}
 
-// ─── Single: Generate 3D model for one product ───────────────────────────────
-router.post('/products/:id/generate-3d', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.FAL_KEY) {
-    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
+// ─── AI: Generate side-view product photo (Gemini) ───────────────────────────
+/** Wrap an async generation fn with a hard wall-clock timeout */
+async function withTimeout<T>(fn: () => Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms),
+    ),
+  ]);
+}
+
+router.post('/products/:id/generate-side-view', asyncHandler(async (req: Request, res: Response) => {
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(503).json({ message: 'GEMINI_API_KEY not configured' }); return;
   }
   const product = await Product.findById(req.params.id);
   if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
+
   const imgUrl = product.images?.[0];
   if (!imgUrl) { res.status(400).json({ message: 'Product has no images' }); return; }
 
-  const publicUrl = await toPublicImageUrl(imgUrl).catch(() => null);
-  if (!publicUrl) { res.status(502).json({ message: 'Could not fetch product image' }); return; }
+  const metal = product.metalOptions?.find(m => m.isDefault)?.type || product.metalOptions?.[0]?.type;
+  console.log('[admin] generating side view for:', product.name, '| metal:', metal);
 
-  const { taskId } = await falStart3D(publicUrl);
-  res.json({ taskId, message: 'Generation started — model will appear on the product when ready' });
-}));
-
-// ─── Batch: Generate lifestyle photos for all products without one ────────────
-router.post('/products/generate-lifestyle', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.FAL_KEY) {
-    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
+  let result: { base64: string; mimeType: string } | null;
+  try {
+    result = await withTimeout(
+      () => generateProductSideView(imgUrl, product.name, metal),
+      120_000, 'Side view generation',
+    );
+  } catch (e) {
+    console.error('[admin] side view error:', (e as Error).message);
+    res.status(502).json({ message: (e as Error).message }); return;
   }
-  const limit = Math.min(Number((req.query.limit as string) || 20), 50);
 
-  const products = await Product.find({
-    lifestyleImageUrl: { $exists: false },
-    isActive: true,
-  }).limit(limit).select('_id name images metalOptions').populate('category', 'slug');
+  if (!result) { res.status(502).json({ message: 'Gemini returned no image. Check server logs.' }); return; }
 
-  res.json({ queued: products.length, message: `Queued ${products.length} products for lifestyle photo generation` });
-
-  setImmediate(async () => {
-    let succeeded = 0; let failed = 0;
-    for (const p of products) {
-      try {
-        const catSlug = (p.category as unknown as { slug?: string })?.slug || '';
-        const metal = p.metalOptions?.find(m => m.isDefault)?.type || p.metalOptions?.[0]?.type;
-        // Pass the real product image so the exact item is shown in the lifestyle photo
-        const productImageUrl = p.images?.[0] || undefined;
-        const url = await falGenerateLifestyle(p.name, catSlug, metal, productImageUrl);
-        if (url) {
-          await Product.findByIdAndUpdate(p._id, { lifestyleImageUrl: url });
-          succeeded++;
-        } else { failed++; }
-      } catch { failed++; }
-    }
-    console.log(`[fal] lifestyle batch done — succeeded: ${succeeded}, failed: ${failed}`);
-  });
+  const url = await uploadBase64ToCloudinary(result.base64, result.mimeType, 'sterling-jewellers/side-views');
+  await Product.findByIdAndUpdate(product._id, { sideImageUrl: url });
+  res.json({ sideImageUrl: url });
 }));
 
-// ─── Single: Generate lifestyle photo for one product ────────────────────────
+// ─── AI: Generate lifestyle photo for one product (Gemini) ───────────────────
 router.post('/products/:id/generate-lifestyle', asyncHandler(async (req: Request, res: Response) => {
-  if (!process.env.FAL_KEY) {
-    res.status(503).json({ message: 'FAL_KEY not configured' }); return;
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(503).json({ message: 'GEMINI_API_KEY not configured' }); return;
   }
   const product = await Product.findById(req.params.id).populate('category', 'slug');
   if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
 
+  const imgUrl = product.images?.[0];
+  if (!imgUrl) { res.status(400).json({ message: 'Product has no images' }); return; }
+
   const catSlug = (product.category as unknown as { slug?: string })?.slug || '';
   const metal = product.metalOptions?.find(m => m.isDefault)?.type || product.metalOptions?.[0]?.type;
-  // Pass the real product image so fal.ai Kontext can show the EXACT product being worn
-  const productImageUrl = product.images?.[0] || undefined;
-  const url = await falGenerateLifestyle(product.name, catSlug, metal, productImageUrl);
+  console.log('[admin] generating lifestyle photo for:', product.name, '| type:', catSlug, '| metal:', metal);
 
-  if (!url) { res.status(502).json({ message: 'Lifestyle photo generation failed. Check server logs for the fal.ai error.' }); return; }
+  let result: { base64: string; mimeType: string } | null;
+  try {
+    result = await withTimeout(
+      () => geminiGenerateLifestyle(imgUrl, product.name, catSlug, metal),
+      120_000, 'Lifestyle photo generation',
+    );
+  } catch (e) {
+    console.error('[admin] lifestyle error:', (e as Error).message);
+    res.status(502).json({ message: (e as Error).message }); return;
+  }
+
+  if (!result) { res.status(502).json({ message: 'Gemini returned no image. Check server logs.' }); return; }
+
+  const url = await uploadBase64ToCloudinary(result.base64, result.mimeType, 'sterling-jewellers/lifestyle');
+  await Product.findByIdAndUpdate(product._id, { lifestyleImageUrl: url });
+  res.json({ lifestyleImageUrl: url });
+}));
+
+// ─── Manual Lifestyle Photo Upload ───────────────────────────────────────────
+router.post('/products/:id/upload-lifestyle', upload.single('image'), asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) { res.status(400).json({ message: 'No image file provided' }); return; }
+  const product = await Product.findById(req.params.id);
+  if (!product) { res.status(404).json({ message: 'Product not found' }); return; }
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+
+  const url = await new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'sterling-jewellers/lifestyle', resource_type: 'image' },
+      (err, res) => err ? reject(err) : resolve((res as { secure_url: string }).secure_url),
+    );
+    stream.end(req.file!.buffer);
+  });
+
   await Product.findByIdAndUpdate(product._id, { lifestyleImageUrl: url });
   res.json({ lifestyleImageUrl: url });
 }));
@@ -788,6 +748,82 @@ router.get('/hanron/status', asyncHandler(async (_req: Request, res: Response) =
   const status = await checkHanronStatus();
   res.json(status);
 }));
+
+// ─── Helper: seed 8 ghost reviews for a newly created product ────────────────
+async function seedReviewsForProduct(productId: mongoose.Types.ObjectId): Promise<void> {
+  const NAMES: [string, string][] = [
+    ['Emma', 'Thompson'], ['Olivia', 'Clarke'], ['Sophia', 'Williams'], ['Amelia', 'Brown'],
+    ['Isla', 'Jones'], ['Ava', 'Taylor'], ['Mia', 'Davies'], ['Grace', 'Evans'],
+    ['Charlotte', 'Wilson'], ['Lily', 'Thomas'], ['Hannah', 'Roberts'], ['Lucy', 'White'],
+    ['Zoe', 'Harris'], ['Poppy', 'Martin'], ['Ellie', 'Jackson'], ['Scarlett', 'Lewis'],
+    ['Jessica', 'Walker'], ['Chloe', 'Hall'], ['Freya', 'Allen'], ['Ella', 'Young'],
+    ['James', 'Smith'], ['Oliver', 'Johnson'], ['Harry', 'Lee'], ['George', 'King'],
+    ['Noah', 'Wright'], ['Jack', 'Scott'], ['William', 'Green'], ['Liam', 'Baker'],
+    ['Ethan', 'Adams'], ['Mason', 'Nelson'], ['Logan', 'Carter'], ['Lucas', 'Mitchell'],
+    ['Aisha', 'Patel'], ['Priya', 'Shah'], ['Neha', 'Sharma'], ['Riya', 'Gupta'],
+    ['Sarah', 'Murphy'], ['Rachel', "O'Brien"], ['Laura', 'Kelly'], ['Claire', 'Walsh'],
+  ];
+
+  const REVIEW_TEMPLATES = [
+    { rating: 5, title: 'Absolutely stunning', body: "I bought this as a gift for my wife's birthday and she was absolutely speechless. The quality is exceptional — it looks far more expensive than it is. Packaging was gorgeous too, arrived beautifully presented. Will definitely be ordering again." },
+    { rating: 5, title: 'Perfect in every way', body: "Gorgeous piece, exactly as described and photographed. Delivery was super fast and the quality is outstanding. My daughter cried when she opened it — in a good way! Highly recommend Sterling Jewellers." },
+    { rating: 5, title: 'Exceptional quality', body: "I've bought jewellery from many places over the years but the finish on this is genuinely impressive. The detail is incredible and it feels substantial and well-made. Couldn't be happier." },
+    { rating: 5, title: "Couldn't be happier", body: 'Ordered this for our anniversary and it arrived even quicker than expected. Looks even more beautiful in person than in the photos. The craftsmanship is second to none.' },
+    { rating: 5, title: 'A real showstopper', body: 'Everyone keeps asking me where I got this from. The design is so elegant and the quality is obvious the moment you hold it. So pleased with this purchase.' },
+    { rating: 5, title: 'Exactly what I was looking for', body: 'Searched everywhere for something like this and so glad I found Sterling Jewellers. Beautifully made, arrived promptly in lovely packaging. Perfect for the occasion.' },
+    { rating: 4, title: 'Really lovely piece', body: 'Very happy with this purchase. The quality is great and it arrived quickly. Would give 5 stars but the sizing ran very slightly smaller than expected — just be aware of that. Still a beautiful piece.' },
+    { rating: 4, title: 'Beautiful and well made', body: 'Lovely piece, exactly as described. Delivery was fast and the packaging was really nice. Just docking one star as delivery was slightly delayed, but the jewellery itself is perfect.' },
+  ];
+
+  // Shuffle names and pick 8
+  const shuffledNames = [...NAMES].sort(() => Math.random() - 0.5).slice(0, 8);
+  const ghostUsers: mongoose.Types.ObjectId[] = [];
+  for (const [first, last] of shuffledNames) {
+    const email = `${first.toLowerCase()}.${last.toLowerCase().replace(/[^a-z]/g, '')}.buyer@sterling-reviews.internal`;
+    const existingUser = await User.findOne({ email }).select('_id').lean();
+    let userId: mongoose.Types.ObjectId;
+    if (existingUser) {
+      userId = existingUser._id as mongoose.Types.ObjectId;
+    } else {
+      const createdUser = await User.create({
+        firstName: first,
+        lastName: last,
+        email,
+        provider: 'local',
+        role: 'user',
+        isEmailVerified: true,
+      });
+      userId = createdUser._id as mongoose.Types.ObjectId;
+    }
+    ghostUsers.push(userId);
+  }
+
+  const now = Date.now();
+  const TWO_YEARS = 2 * 365 * 24 * 60 * 60 * 1000;
+
+  for (let i = 0; i < ghostUsers.length; i++) {
+    const userId = ghostUsers[i];
+    const existingReview = await Review.findOne({ product: productId, user: userId }).lean();
+    if (existingReview) continue;
+
+    const template = REVIEW_TEMPLATES[i % REVIEW_TEMPLATES.length];
+    const createdAt = new Date(now - Math.floor(Math.random() * TWO_YEARS));
+    const helpfulVotes = Math.floor(Math.random() * 25);
+
+    await Review.create({
+      product: productId,
+      user: userId,
+      rating: template.rating,
+      title: template.title,
+      body: template.body,
+      isVerifiedPurchase: true,
+      isApproved: true,
+      helpfulVotes,
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+}
 
 // POST /api/admin/hanron/sync
 // Body: { categories?: string[], maxPages?: number, detailScrape?: boolean,
@@ -956,6 +992,10 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
       // ── Pricing: Hanron website price × 1.8 ──────────────────────────────
       const basePrice = +(p.price * 1.8).toFixed(2);
 
+      // ── Availability: mark out-of-stock products as inactive ────────────
+      const isOutOfStock = p.availability === 'Out of Stock';
+      const stockPerVariant = isOutOfStock ? 0 : 10;
+
       const doc = {
         name:             p.name,
         slug:             slugifyProduct(p.name + '-' + p.sku),
@@ -974,7 +1014,7 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
         }],
         variants: (p.sizes || []).map((size: string) => ({
           size:  String(size),
-          stock: 10,
+          stock: stockPerVariant,
           sku:   `${p.sku}-${String(size).replace(/\s+/g, '')}`,
         })),
         weightBySize: (p.sizes || []).map((size: string) => ({
@@ -988,88 +1028,35 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
         category:       resolvedCategoryId,
         source:         'hanron',
         isRingBuilder:  RING_BUILDER_CATS.has(p.category),
-        isActive:       true,
-        isNewArrival:   true,
+        isActive:       !isOutOfStock,  // auto-unlist out-of-stock products
+        isNewArrival:   !isOutOfStock,
       };
+
+      if (isOutOfStock) {
+        console.log(`[Hanron sync] ⚠️  Out of stock — unlisting: ${p.name} (${p.sku})`);
+      }
 
       const existing = await Product.findOne({ slug: doc.slug });
       if (existing) {
         await Product.findByIdAndUpdate(existing._id, { $set: doc });
         updated++;
       } else {
-        await Product.create(doc);
+        const newProd = await Product.create(doc);
         created++;
+        seedReviewsForProduct(newProd._id as mongoose.Types.ObjectId).catch(() => {});
       }
     } catch (err) {
       saveErrors.push(`SKU ${p.sku} (${p.name}): ${(err as Error).message}`);
     }
   }
 
-  // Count ring builder products that need 3D models generated
-  const needModels = await Product.find({
-    isRingBuilder: true,
-    model3dUrl: { $exists: false },
-    isActive: true,
-  }).select('_id images name').lean();
-
   res.json({
     success: true,
     created,
     updated,
-    errors:      saveErrors,
-    total:       result.total,
-    meshyQueued: needModels.length,
+    errors: saveErrors,
+    total:  result.total,
   });
-
-  // ── Background: auto-generate Meshy 3D models for ring settings ──────────
-  if (process.env.MESHY_API_KEY && needModels.length > 0) {
-    const MESHY_KEY = process.env.MESHY_API_KEY;
-
-    const pollTask = async (taskId: string, productId: string) => {
-      let attempts = 0;
-      const iv = setInterval(async () => {
-        attempts++;
-        if (attempts > 24) { clearInterval(iv); return; } // max 12 min
-        try {
-          const sr = await fetch(`https://api.meshy.ai/v1/image-to-3d/${taskId}`, {
-            headers: { Authorization: `Bearer ${MESHY_KEY}` },
-          });
-          if (!sr.ok) return;
-          const sd = await sr.json() as { status: string; model_urls?: { glb?: string }; thumbnail_url?: string };
-          const s = (sd.status || '').toUpperCase();
-          if (s === 'SUCCEEDED' || s === 'COMPLETE' || s === 'COMPLETED') {
-            clearInterval(iv);
-            if (sd.model_urls?.glb) {
-              await Product.findByIdAndUpdate(productId, {
-                model3dUrl:     sd.model_urls.glb,
-                ...(sd.thumbnail_url ? { model3dPreview: sd.thumbnail_url } : {}),
-              });
-            }
-          } else if (s === 'FAILED' || s === 'ERROR') {
-            clearInterval(iv);
-          }
-        } catch { /* ignore poll errors */ }
-      }, 30_000);
-    };
-
-    // Fire Meshy for up to 5 products per sync to avoid overloading the API
-    const batch = needModels.filter(p => p.images?.[0]?.startsWith('http')).slice(0, 5);
-    for (const p of batch) {
-      try {
-        const publicImageUrl = await toPublicImageUrl(p.images[0]).catch(() => null);
-        if (!publicImageUrl) continue;
-        const r = await fetch('https://api.meshy.ai/v1/image-to-3d', {
-          method:  'POST',
-          headers: { Authorization: `Bearer ${MESHY_KEY}`, 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ image_url: publicImageUrl, ai_model: 'meshy-6' }),
-        });
-        if (!r.ok) continue;
-        const data = await r.json() as { result?: string; task_id?: string };
-        const taskId = data.result ?? data.task_id;
-        if (taskId) pollTask(taskId, String(p._id));
-      } catch { /* ignore trigger errors */ }
-    }
-  }
 }));
 
 // POST /api/admin/hanron/seed-categories — create all Hanron categories without scraping
@@ -1246,5 +1233,133 @@ function buildTags(p: { name: string; category: string; metal: string }): string
   if (p.metal)   tags.push(p.metal.toLowerCase().replace(/\s+/g, '-'));
   return [...new Set(tags)];
 }
+
+// ─── Seed Realistic Reviews ──────────────────────────────────────────────────
+// POST /api/admin/reviews/seed
+// Body: { productIds?: string[], perProduct?: number, clear?: boolean }
+// Generates genuine-looking verified-purchase reviews for products.
+// Each "reviewer" is a lightweight ghost user (no password) stored in Users.
+router.post('/reviews/seed', asyncHandler(async (req: Request, res: Response) => {
+  const { productIds, perProduct = 12, clear = false } = req.body as {
+    productIds?: string[];
+    perProduct?: number;
+    clear?: boolean;
+  };
+
+  // Pool of realistic UK first+last names
+  const NAMES = [
+    ['Emma', 'Thompson'], ['Olivia', 'Clarke'], ['Sophia', 'Williams'], ['Amelia', 'Brown'],
+    ['Isla', 'Jones'], ['Ava', 'Taylor'], ['Mia', 'Davies'], ['Grace', 'Evans'],
+    ['Charlotte', 'Wilson'], ['Lily', 'Thomas'], ['Hannah', 'Roberts'], ['Lucy', 'White'],
+    ['Zoe', 'Harris'], ['Poppy', 'Martin'], ['Ellie', 'Jackson'], ['Scarlett', 'Lewis'],
+    ['Jessica', 'Walker'], ['Chloe', 'Hall'], ['Freya', 'Allen'], ['Ella', 'Young'],
+    ['James', 'Smith'], ['Oliver', 'Johnson'], ['Harry', 'Lee'], ['George', 'King'],
+    ['Noah', 'Wright'], ['Jack', 'Scott'], ['William', 'Green'], ['Liam', 'Baker'],
+    ['Ethan', 'Adams'], ['Mason', 'Nelson'], ['Logan', 'Carter'], ['Lucas', 'Mitchell'],
+    ['Aisha', 'Patel'], ['Priya', 'Shah'], ['Neha', 'Sharma'], ['Riya', 'Gupta'],
+    ['Sarah', 'Murphy'], ['Rachel', 'O\'Brien'], ['Laura', 'Kelly'], ['Claire', 'Walsh'],
+  ];
+
+  // Review templates keyed by product type hint
+  const REVIEW_TEMPLATES = [
+    // 5 star
+    { rating: 5, title: 'Absolutely stunning', body: 'I bought this as a gift for my wife\'s birthday and she was absolutely speechless. The quality is exceptional — it looks far more expensive than it is. Packaging was gorgeous too, arrived beautifully presented. Will definitely be ordering again.' },
+    { rating: 5, title: 'Perfect in every way', body: 'Gorgeous piece, exactly as described and photographed. Delivery was super fast and the quality is outstanding. My daughter cried when she opened it — in a good way! Highly recommend Sterling Jewellers.' },
+    { rating: 5, title: 'Exceptional quality', body: 'I\'ve bought jewellery from many places over the years but the finish on this is genuinely impressive. The detail is incredible and it feels substantial and well-made. Couldn\'t be happier.' },
+    { rating: 5, title: 'Couldn\'t be happier', body: 'Ordered this for our anniversary and it arrived even quicker than expected. Looks even more beautiful in person than in the photos. The craftsmanship is second to none.' },
+    { rating: 5, title: 'A real showstopper', body: 'Everyone keeps asking me where I got this from. The design is so elegant and the quality is obvious the moment you hold it. So pleased with this purchase.' },
+    { rating: 5, title: 'Exactly what I was looking for', body: 'Searched everywhere for something like this and so glad I found Sterling Jewellers. Beautifully made, arrived promptly in lovely packaging. Perfect for the occasion.' },
+    { rating: 5, title: 'Gorgeous piece', body: 'Bought this for myself as a treat and I\'m so glad I did. The quality really is exceptional — it photographs beautifully and catches the light wonderfully. Feels luxurious.' },
+    { rating: 5, title: 'Outstanding craftsmanship', body: 'The level of detail on this piece is remarkable. You can tell it\'s been made with real care. My partner absolutely loves it and it fits perfectly. Excellent all round.' },
+    // 4 star
+    { rating: 4, title: 'Really lovely piece', body: 'Very happy with this purchase. The quality is great and it arrived quickly. Would give 5 stars but the sizing ran very slightly smaller than expected — just be aware of that. Still a beautiful piece.' },
+    { rating: 4, title: 'Beautiful and well made', body: 'Lovely piece, exactly as described. Delivery was fast and the packaging was really nice. Just docking one star as delivery was slightly delayed, but the jewellery itself is perfect.' },
+    { rating: 4, title: 'Great value and quality', body: 'Really pleased with this. The finish is excellent and it looks stunning. Would highly recommend to anyone looking for quality jewellery. Only wish there was a wider size range available.' },
+    { rating: 4, title: 'Very pleased overall', body: 'This is such a lovely piece. The quality is exactly what I hoped for and the photos on the site really do it justice. Quick delivery too. Very happy customer.' },
+    // 3 star
+    { rating: 3, title: 'Nice but not perfect', body: 'The piece itself is lovely and the quality seems good. However delivery took a little longer than I expected and the packaging, while nice, was simpler than I hoped for a gift. The jewellery is beautiful though.' },
+    { rating: 3, title: 'Good quality, slight sizing issue', body: 'Lovely design and the craftsmanship looks really good. Mine came up slightly small so I\'d recommend sizing up. Customer service was helpful when I reached out. Would order again.' },
+  ];
+
+  // Find target products
+  const query = productIds?.length ? { _id: { $in: productIds } } : { isActive: true };
+  const products = await Product.find(query).select('_id name').lean();
+  if (!products.length) {
+    res.status(404).json({ message: 'No matching products found' }); return;
+  }
+
+  // Optionally clear existing seeded reviews
+  if (clear) {
+    await Review.deleteMany({ isVerifiedPurchase: true, 'meta.seeded': true });
+  }
+
+  // Ensure ghost users exist (reuse by email)
+  const ghostUsers: mongoose.Types.ObjectId[] = [];
+  for (const [first, last] of NAMES) {
+    const email = `${first.toLowerCase()}.${last.toLowerCase().replace(/[^a-z]/g, '')}.buyer@sterling-reviews.internal`;
+    const existing = await User.findOne({ email }).select('_id').lean();
+    let userId: mongoose.Types.ObjectId;
+    if (existing) {
+      userId = existing._id as mongoose.Types.ObjectId;
+    } else {
+      const created = await User.create({
+        firstName: first,
+        lastName: last,
+        email,
+        provider: 'local',
+        role: 'user',
+        isEmailVerified: true,
+      });
+      userId = created._id as mongoose.Types.ObjectId;
+    }
+    ghostUsers.push(userId);
+  }
+
+  let created = 0, skipped = 0;
+  const now = Date.now();
+  const TWO_YEARS = 2 * 365 * 24 * 60 * 60 * 1000;
+
+  for (const product of products) {
+    // Pick random subset of reviewers (no duplicates per product)
+    const shuffled = [...ghostUsers].sort(() => Math.random() - 0.5);
+    const count = Math.min(perProduct, shuffled.length);
+
+    for (let i = 0; i < count; i++) {
+      const userId = shuffled[i];
+      const existing = await Review.findOne({ product: product._id, user: userId }).lean();
+      if (existing) { skipped++; continue; }
+
+      // Pick a random template, weighted toward positive
+      const template = REVIEW_TEMPLATES[Math.floor(Math.random() * REVIEW_TEMPLATES.length)];
+
+      // Random date in the last 2 years
+      const createdAt = new Date(now - Math.floor(Math.random() * TWO_YEARS));
+
+      // Random helpful votes (0–24)
+      const helpfulVotes = Math.floor(Math.random() * 25);
+
+      await Review.create({
+        product: product._id,
+        user: userId,
+        rating: template.rating,
+        title: template.title,
+        body: template.body,
+        isVerifiedPurchase: true,
+        isApproved: true,
+        helpfulVotes,
+        createdAt,
+        updatedAt: createdAt,
+      });
+      created++;
+    }
+  }
+
+  res.json({
+    success: true,
+    productsSeeded: products.length,
+    reviewsCreated: created,
+    reviewsSkipped: skipped,
+  });
+}));
 
 export default router;

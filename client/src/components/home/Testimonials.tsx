@@ -26,10 +26,10 @@ export default function Testimonials() {
         <div className="max-w-3xl mx-auto">
           {/* Active testimonial */}
           <div className="text-center px-6 md:px-12">
-            <Quote size={40} className="text-gold-200 mx-auto mb-6" />
+            <Quote size={40} className="text-gray-200 mx-auto mb-6" />
             <div className="flex justify-center gap-1 mb-6">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={16} className="text-gold-400 fill-gold-400" />
+                <Star key={i} size={16} className="text-navy fill-navy" />
               ))}
             </div>
             <p className="font-serif text-xl font-light text-charcoal leading-relaxed mb-6 italic">
@@ -37,7 +37,7 @@ export default function Testimonials() {
             </p>
             <p className="font-sans font-medium text-charcoal text-sm">{testimonials[active].name}</p>
             <p className="font-sans text-xs text-gray-500 mt-1">{testimonials[active].location}</p>
-            <p className="font-sans text-xs text-gold-600 mt-1 italic">{testimonials[active].ring}</p>
+            <p className="font-sans text-xs text-navy mt-1 italic">{testimonials[active].ring}</p>
           </div>
 
           {/* Dots */}
@@ -46,7 +46,7 @@ export default function Testimonials() {
               <button
                 key={i}
                 onClick={() => setActive(i)}
-                className={cn('transition-all duration-300', i === active ? 'w-8 h-1 bg-gold-500' : 'w-2 h-1 bg-gray-200 hover:bg-gold-300')}
+                className={cn('transition-all duration-300', i === active ? 'w-8 h-1 bg-navy' : 'w-2 h-1 bg-gray-200 hover:bg-gray-300')}
               />
             ))}
           </div>
@@ -60,7 +60,7 @@ export default function Testimonials() {
             { num: '15,000+', label: 'Happy Customers', sub: 'Across the UK' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
-              <p className="font-serif text-4xl font-light text-gold-600">{stat.num}</p>
+              <p className="font-serif text-4xl font-light text-navy">{stat.num}</p>
               <p className="font-sans font-medium text-sm text-charcoal mt-2">{stat.label}</p>
               <p className="font-sans text-xs text-gray-400 mt-1">{stat.sub}</p>
             </div>

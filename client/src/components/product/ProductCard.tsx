@@ -52,7 +52,7 @@ export default function ProductCard({ product }: { product: IProduct }) {
             <span className="px-2 py-1 bg-charcoal text-white text-[9px] font-sans tracking-widest uppercase">New</span>
           )}
           {product.isBestseller && (
-            <span className="px-2 py-1 bg-gold-500 text-white text-[9px] font-sans tracking-widest uppercase">Bestseller</span>
+            <span className="px-2 py-1 bg-navy text-white text-[9px] font-sans tracking-widest uppercase">Bestseller</span>
           )}
           {product.salePrice && (
             <span className="px-2 py-1 bg-red-500 text-white text-[9px] font-sans tracking-widest uppercase">
@@ -63,10 +63,10 @@ export default function ProductCard({ product }: { product: IProduct }) {
 
         {/* Actions */}
         <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
-          <button onClick={handleWishlist} className={cn('w-9 h-9 bg-white shadow-md flex items-center justify-center hover:bg-gold-50 transition-colors', wishlisted && 'text-red-400')}>
+          <button onClick={handleWishlist} className={cn('w-9 h-9 bg-white shadow-md flex items-center justify-center hover:bg-[#F0F4F8] transition-colors', wishlisted && 'text-red-400')}>
             <Heart size={15} fill={wishlisted ? 'currentColor' : 'none'} />
           </button>
-          <button onClick={handleAddToCart} className="w-9 h-9 bg-white shadow-md flex items-center justify-center hover:bg-gold-50 transition-colors">
+          <button onClick={handleAddToCart} className="w-9 h-9 bg-white shadow-md flex items-center justify-center hover:bg-[#F0F4F8] transition-colors">
             <ShoppingBag size={15} />
           </button>
         </div>
@@ -75,7 +75,7 @@ export default function ProductCard({ product }: { product: IProduct }) {
       {/* Info */}
       <div className="p-4 bg-white">
         <p className="text-xs font-sans text-gray-400 tracking-widest uppercase mb-1">{product.category?.name}</p>
-        <h3 className="font-serif text-base text-charcoal group-hover:text-gold-600 transition-colors leading-tight line-clamp-2 mb-2">
+        <h3 className="font-serif text-base text-charcoal group-hover:text-navy transition-colors leading-tight line-clamp-2 mb-2">
           {product.name}
         </h3>
 
@@ -98,11 +98,30 @@ export default function ProductCard({ product }: { product: IProduct }) {
           </div>
         )}
 
+        {/* Style & gemstone badges */}
+        {product.style && (() => {
+          const styleMap: Record<string, string> = {
+            solitaire: 'Solitaire',
+            halo: 'Halo',
+            'three-stone': 'Three Stone',
+            pave: 'Pavé',
+            cluster: 'Cluster',
+            eternity: 'Eternity',
+            band: 'Band',
+          };
+          const label = styleMap[product.style] || product.style;
+          return (
+            <span className="inline-block text-[10px] font-sans border border-navy/20 text-navy px-2 py-0.5 rounded-full mb-2 mr-1">
+              {label}
+            </span>
+          );
+        })()}
+
         {/* Rating */}
         {product.reviewCount > 0 && (
           <div className="flex items-center gap-1 mb-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} size={10} className={i < Math.round(product.averageRating) ? 'text-gold-400 fill-gold-400' : 'text-gray-200 fill-gray-200'} />
+              <Star key={i} size={10} className={i < Math.round(product.averageRating) ? 'text-navy fill-navy' : 'text-gray-200 fill-gray-200'} />
             ))}
             <span className="text-xs font-sans text-gray-400 ml-1">({product.reviewCount})</span>
           </div>
@@ -112,7 +131,7 @@ export default function ProductCard({ product }: { product: IProduct }) {
         <div className="flex items-center gap-2">
           {product.salePrice ? (
             <>
-              <span className="font-sans font-semibold text-gold-600">{formatPrice(product.salePrice)}</span>
+              <span className="font-sans font-semibold text-navy">{formatPrice(product.salePrice)}</span>
               <span className="font-sans text-sm text-gray-400 line-through">{formatPrice(product.basePrice)}</span>
             </>
           ) : (

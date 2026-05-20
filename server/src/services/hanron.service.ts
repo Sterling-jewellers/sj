@@ -205,13 +205,37 @@ async function scrapeCategoryAll(client: AxiosInstance, path: string, categoryNa
     const availText  = $el.find('.instock h3 span, .instock').first().text().trim();
     const availability = availText.toLowerCase().includes('out') ? 'Out of Stock' : 'In Stock';
 
-    // Sizes — .ml-block contains "M 2g", "L 2g" etc.
+    // Sizes — try multiple selectors. UK ring sizes are letters (H–Z, half-sizes like N½)
     const sizes: string[] = [];
+    // Method 1: .ml-block (original listing grid)
     $el.find('.ml-block').each((_: number, s: Element) => {
       const t = $(s).text().trim();
       const sz = t.split(/\s+/)[0];
-      if (sz && /^[A-Z0-9]+$/.test(sz) && sz.length <= 3) sizes.push(sz);
+      if (sz && /^[A-Z][½¼¾]?$/.test(sz)) sizes.push(sz);
     });
+    // Method 2: select[name*="size"] or select[name*="Size"] options
+    if (sizes.length === 0) {
+      $el.find('select').each((_: number, sel: Element) => {
+        const nameAttr = $(sel).attr('name') || '';
+        if (/size/i.test(nameAttr) || /ring/i.test(nameAttr)) {
+          $(sel).find('option').each((_: number, opt: Element) => {
+            const val = $(opt).attr('value') || $(opt).text();
+            const cleaned = val.trim();
+            if (cleaned && cleaned !== 'Select Size' && !/select/i.test(cleaned)) {
+              sizes.push(cleaned);
+            }
+          });
+        }
+      });
+    }
+    // Method 3: text that lists sizes (e.g. "Size: H J L N P R T")
+    if (sizes.length === 0) {
+      const fullText = $el.text();
+      const sizeMatches = fullText.match(/\b([H-Z][½¼¾]?)\b/g);
+      if (sizeMatches) {
+        sizeMatches.forEach(s => { if (!sizes.includes(s)) sizes.push(s); });
+      }
+    }
 
     // Metal inferred from product name (Y/G, W/G, R/G patterns)
     const metal = inferMetal(name);

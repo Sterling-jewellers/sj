@@ -96,12 +96,12 @@ export default async function CategoryGrid() {
                   <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/15 transition-colors duration-500" />
                 </div>
 
-                {/* Name strip — ivory, below image */}
-                <div className="bg-[#F5F3EE] px-3 pt-4 pb-5 text-center">
+                {/* Name strip — white, below image */}
+                <div className="bg-white px-3 pt-4 pb-5 text-center">
                   <p className="font-serif text-base font-light text-charcoal tracking-wide">
                     {cat.name}
                   </p>
-                  <div className="h-px bg-gold-400 mt-2 mx-auto w-0 group-hover:w-8 transition-all duration-500" />
+                  <div className="h-px bg-navy mt-2 mx-auto w-0 group-hover:w-8 transition-all duration-500" />
                 </div>
               </Link>
             );

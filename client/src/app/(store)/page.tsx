@@ -8,17 +8,15 @@ export const metadata: Metadata = {
     canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk',
   },
 };
-import CategoryGrid from '@/components/home/CategoryGrid';
 import FeaturedProducts from '@/components/home/FeaturedProducts';
 import PromoBanner from '@/components/home/PromoBanner';
 import Bestsellers from '@/components/home/Bestsellers';
 import WhyChooseUs from '@/components/home/WhyChooseUs';
-import RingBuilderCTA from '@/components/home/RingBuilderCTA';
-import { RING_BUILDER_ENABLED } from '@/lib/features';
 import Testimonials from '@/components/home/Testimonials';
 import InstagramGallery from '@/components/home/InstagramGallery';
 import PersonalizedBanner from '@/components/personalization/PersonalizedBanner';
-import RecentlyViewed from '@/components/personalization/RecentlyViewed';
+import ShopByOccasion from '@/components/home/ShopByOccasion';
+import BrandStory from '@/components/home/BrandStory';
 
 export default function HomePage() {
   return (
@@ -26,13 +24,11 @@ export default function HomePage() {
       {/* Subtle returning-visitor banner — hidden for new visitors */}
       <PersonalizedBanner />
       <HeroBanner />
-      <CategoryGrid />
+      <ShopByOccasion />
       <FeaturedProducts />
-      {/* Recently viewed — only renders after 2+ products viewed */}
-      <RecentlyViewed />
       <PromoBanner />
+      <BrandStory />
       <Bestsellers />
-      {RING_BUILDER_ENABLED && <RingBuilderCTA />}
       <WhyChooseUs />
       <Testimonials />
       <InstagramGallery />

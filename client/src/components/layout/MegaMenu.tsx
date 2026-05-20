@@ -538,6 +538,98 @@ function WeddingMenu() {
   );
 }
 
+// ─── GIFTS ───────────────────────────────────────────────────────────────────
+function GiftsMenu() {
+  return (
+    <div className="page-container py-8">
+      <div className="grid grid-cols-[220px_1fr_260px] gap-10">
+        {/* Col 1 — by budget */}
+        <div>
+          <h4 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-3">Shop by Budget</h4>
+          <ul className="space-y-2.5">
+            {[
+              { label: 'Gifts Under £100',  href: '/products?maxPrice=100',  desc: 'Beautiful jewellery, any budget' },
+              { label: 'Gifts Under £250',  href: '/products?maxPrice=250',  desc: 'Mid-range fine jewellery' },
+              { label: 'Gifts Under £500',  href: '/products?maxPrice=500',  desc: 'Premium gifting' },
+              { label: 'Gifts Under £1000', href: '/products?maxPrice=1000', desc: 'Luxury statement pieces' },
+              { label: 'All Gifts',         href: '/products',               desc: 'Explore everything' },
+            ].map(l => (
+              <li key={l.label}>
+                <Link href={l.href} className="group block py-0.5">
+                  <span className="text-sm font-sans font-medium text-charcoal group-hover:text-gold-600 transition-colors">{l.label}</span>
+                  <span className="block text-[11px] text-gray-400">{l.desc}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5">
+            <h4 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-3">By Occasion</h4>
+            <ul className="space-y-1.5">
+              {[
+                { label: 'Birthday',     href: '/products?occasion=birthday' },
+                { label: 'Anniversary',  href: '/products?occasion=anniversary' },
+                { label: 'Mother\'s Day', href: '/products?occasion=mothers-day' },
+                { label: 'Christmas',    href: '/products?occasion=christmas' },
+                { label: 'New Baby',     href: '/category/baby-rings' },
+                { label: 'Personalised', href: '/products?style=personalised' },
+              ].map(l => (
+                <li key={l.label}>
+                  <Link href={l.href} className="text-xs font-sans text-gray-500 hover:text-gold-600 transition-colors">{l.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Col 2 — by jewellery type */}
+        <div>
+          <h4 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Gift Ideas by Jewellery Type</h4>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Rings',      href: '/category/rings',           img: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=200&h=140&fit=crop' },
+              { label: 'Earrings',   href: '/category/gold-earrings',   img: 'https://images.unsplash.com/photo-1630938916408-b0021e8ac59a?w=200&h=140&fit=crop' },
+              { label: 'Pendants',   href: '/category/gold-pendants',   img: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=200&h=140&fit=crop' },
+              { label: 'Bracelets',  href: '/category/gold-bracelets',  img: 'https://images.unsplash.com/photo-1573408301185-9519f94ae4d8?w=200&h=140&fit=crop' },
+              { label: 'Bangles',    href: '/category/gold-bangles',    img: 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=200&h=140&fit=crop' },
+              { label: 'Chains',     href: '/category/gold-chains',     img: 'https://images.unsplash.com/photo-1506630448388-4e683c67ddb0?w=200&h=140&fit=crop' },
+            ].map(c => (
+              <Link key={c.label} href={c.href} className="group relative overflow-hidden">
+                <div className="relative h-24 overflow-hidden rounded">
+                  <img src={c.img} alt={c.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 via-transparent to-transparent" />
+                  <div className="absolute bottom-0 left-0 p-2">
+                    <span className="text-xs font-sans font-medium text-white">{c.label}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-4 p-4 bg-navy/5 border border-navy/10">
+            <p className="text-[11px] font-sans font-semibold text-charcoal mb-1">🎁 Free Gift Wrapping</p>
+            <p className="text-[11px] font-sans text-gray-500">Every order arrives beautifully gift-wrapped with a handwritten card option at checkout.</p>
+          </div>
+        </div>
+
+        {/* Col 3 — featured */}
+        <div className="space-y-3">
+          <FeaturedTile
+            title="Birthday Jewellery"
+            sub="Perfect Gifts"
+            image="https://images.unsplash.com/photo-1630938916408-b0021e8ac59a?w=520&h=320&fit=crop"
+            href="/products?occasion=birthday"
+          />
+          <FeaturedTile
+            title="Anniversary Gifts"
+            sub="Timeless Pieces"
+            image="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=520&h=320&fit=crop"
+            href="/products?occasion=anniversary"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── JEWELLERY ────────────────────────────────────────────────────────────────
 function JewelleryMenu() {
   return (
@@ -634,12 +726,12 @@ function JewelleryMenu() {
 // ─── Main export ─────────────────────────────────────────────────────────────
 export default function MegaMenu({ activeMenu }: { activeMenu: string }) {
   return (
-    <div className="absolute top-full left-0 right-0 bg-ivory border-t border-gray-200 shadow-2xl z-50 animate-fade-in">
-      {activeMenu === 'Engagement Rings' && <EngagementMenu />}
-      {activeMenu === 'Diamonds'         && DIAMONDS_ENABLED && <DiamondsMenu />}
-      {activeMenu === 'Rings'            && <RingsMenu />}
-      {activeMenu === 'Wedding Rings'    && <WeddingMenu />}
-      {activeMenu === 'Jewellery'        && <JewelleryMenu />}
+    <div className="absolute top-full left-0 right-0 bg-ivory border-t border-gray-100 shadow-2xl z-50 animate-fade-in">
+      {activeMenu === 'Engagement'     && <EngagementMenu />}
+      {activeMenu === 'Wedding'        && <WeddingMenu />}
+      {activeMenu === 'Fine Jewellery' && <JewelleryMenu />}
+      {activeMenu === 'Diamonds'       && DIAMONDS_ENABLED && <DiamondsMenu />}
+      {activeMenu === 'Gifts'          && <GiftsMenu />}
     </div>
   );
 }

@@ -15,7 +15,7 @@ export default function PromoBanner() {
           />
           <div className="absolute inset-0 bg-charcoal/50" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-8">
-            <p className="section-subtitle text-gold-300 mb-3">Over 10,000 Stones</p>
+            <p className="section-subtitle text-white/70 mb-3">Over 10,000 Stones</p>
             <h3 className="font-serif text-4xl font-light mb-4">Find Your Diamond</h3>
             <p className="text-sm font-sans text-gray-300 mb-6 max-w-xs">Search GIA & IGI certified diamonds by shape, carat, cut, colour and clarity.</p>
             <Link href="/diamonds" className="btn-gold">Search Diamonds</Link>
@@ -24,13 +24,13 @@ export default function PromoBanner() {
 
         {/* Right - Custom ring builder OR gold jewellery CTA */}
         {RING_BUILDER_ENABLED ? (
-          <div className="relative h-80 md:h-96 group overflow-hidden bg-champagne">
+          <div className="relative h-80 md:h-96 group overflow-hidden bg-navy">
             <Image
               src="https://images.unsplash.com/photo-1506630448388-4e683c67ddb0?w=800&h=600&fit=crop"
               alt="Custom Ring Builder"
               fill className="object-cover group-hover:scale-105 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-gold-500/30" />
+            <div className="absolute inset-0 bg-navy/50" />
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-8">
               <p className="section-subtitle text-white/80 mb-3">Made For You</p>
               <h3 className="font-serif text-4xl font-light mb-4">Create Your Ring</h3>
@@ -47,7 +47,7 @@ export default function PromoBanner() {
             />
             <div className="absolute inset-0 bg-charcoal/55" />
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-8">
-              <p className="section-subtitle text-gold-300 mb-3">Handcrafted in Gold</p>
+              <p className="section-subtitle text-white/70 mb-3">Handcrafted in Gold</p>
               <h3 className="font-serif text-4xl font-light mb-4">Fine Gold Jewellery</h3>
               <p className="text-sm font-sans text-gray-300 mb-6 max-w-xs">Discover our full collection of 9ct and 18ct gold rings, earrings, pendants and bracelets.</p>
               <Link href="/category/jewellery" className="btn-gold">Shop Collection</Link>

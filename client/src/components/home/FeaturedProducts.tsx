@@ -34,7 +34,7 @@ export default function FeaturedProducts() {
             <h2 className="section-title">Featured Pieces</h2>
             <div className="gold-divider mt-4 mx-0" />
           </div>
-          <Link href="/products?isFeatured=true" className="hidden md:block text-xs font-sans tracking-widest uppercase text-gold-600 hover:text-gold-700 font-medium">
+          <Link href="/products?isFeatured=true" className="hidden md:block text-xs font-sans tracking-widest uppercase text-navy hover:text-black font-medium">
             View All →
           </Link>
         </div>

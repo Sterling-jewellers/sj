@@ -17,24 +17,25 @@ const config: Config = {
 
         charcoal: '#000000',   // Pure black — all primary text & UI
 
-        // Warm antique gold scale — buttons, accents, dividers, hover states
+        // Navy scale — buttons, accents, dividers, hover states
         gold: {
-          50:  '#FAF7F2',   // barely-there warm white
-          100: '#F2E8D5',   // very light gold tint — subtle section bg
-          200: '#E4CFA8',   // light gold
-          300: '#D4B47A',   // medium-light gold
-          400: '#C29B5A',   // medium gold
-          500: '#B08D57',   // ← antique gold — primary accent
-          600: '#957446',   // darker gold — hover / text accents
-          700: '#785B34',   // deep gold
-          800: '#5A4226',   // very deep
-          900: '#3C2C19',   // near-black gold
+          50:  '#F0F4F8',
+          100: '#E8EFF5',
+          200: '#C5D5E5',
+          300: '#6B8FB3',
+          400: '#2D5F8A',
+          500: '#042241',   // ← THE navy — primary accent
+          600: '#031B35',
+          700: '#021428',
+          800: '#010D1C',
+          900: '#000710',
         },
 
-        champagne: '#FAF7F2',  // Warm near-white — section backgrounds, cards
+        champagne: '#F5F7FA',  // Near-white — section backgrounds, cards
         ivory:     '#FFFFFF',  // Pure white — page base
+        navy:      '#042241',  // Deep navy — boxes, banners, CTAs
         'brand-dark':  '#000000',
-        'brand-light': '#B08D57',
+        'brand-light': '#042241',
       },
       fontFamily: {
         // Lora    (serif)  → headings, product names, editorial copy

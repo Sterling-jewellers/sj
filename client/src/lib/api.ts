@@ -117,7 +117,7 @@ export const adminApi = {
   updateCategory: (id: string, data: unknown) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id: string) => api.delete(`/admin/categories/${id}`),
 
-  // AI generation
+  // AI generation (product content)
   generateProduct: (data: unknown) => api.post('/admin/ai/generate-product', data),
   generateMetalImage: (data: { imageUrl: string; metalType: string; karat?: string }) =>
     api.post('/admin/ai/generate-metal-image', data),
@@ -126,17 +126,13 @@ export const adminApi = {
   saveMetalImages: (productId: string, data: { metalType: string; imageUrl: string }) =>
     api.patch(`/admin/products/${productId}/metal-images`, data),
 
-  // 3D model
-  generate3D: (data: { imageUrl: string }) => api.post('/admin/ai/generate-3d', data),
-  check3DStatus: (taskId: string) => api.get(`/admin/ai/3d-status/${taskId}`),
-  saveModel3D: (productId: string, data: { model3dUrl: string; model3dPreview?: string }) =>
-    api.patch(`/admin/products/${productId}/model3d`, data),
-  generate3DBatch: (limit?: number) => api.post('/admin/products/generate-3d', {}, { params: limit ? { limit } : {} }),
-  generate3DSingle: (id: string) => api.post(`/admin/products/${id}/generate-3d`),
+  // AI: Side view photo (Gemini)
+  generateSideView: (id: string) => api.post(`/admin/products/${id}/generate-side-view`),
 
-  // Lifestyle photos (Replicate)
-  generateLifestyleBatch: (limit?: number) => api.post('/admin/products/generate-lifestyle', {}, { params: limit ? { limit } : {} }),
+  // AI: Lifestyle photo (Gemini)
   generateLifestyleSingle: (id: string) => api.post(`/admin/products/${id}/generate-lifestyle`),
+  uploadLifestylePhoto: (id: string, formData: FormData) =>
+    api.post(`/admin/products/${id}/upload-lifestyle`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 
   // Hanron Jewellery scraper
   hanronStatus: () => api.get('/admin/hanron/status'),
@@ -165,6 +161,10 @@ export const adminApi = {
     gemstone?: string;
     caratWeight?: number;
   }) => api.post('/admin/ai/competitor-price', data),
+
+  // Seed realistic reviews
+  seedReviews: (data: { productIds?: string[]; perProduct?: number; clear?: boolean }) =>
+    api.post('/admin/reviews/seed', data),
 };
 
 export const goldPriceApi = {

@@ -9,17 +9,15 @@
 :root {
   /* Brand tokens */
   --brand-dark:    #000000;   /* Pure black  */
-  --brand-light:   #B08D57;   /* Antique gold */
   --brand-white:   #FFFFFF;
   --brand-text:    #000000;
 
   --font-lora:     'Lora',    serif;
   --font-gantari:  'Gantari', sans-serif;
-  --gold:          #B08D57;
-  --gold-light:    #D4B47A;
+  --navy:          #042241;
   --charcoal:      #000000;
   --ivory:         #FFFFFF;
-  --champagne:     #FAF7F2;
+  --champagne:     #F5F7FA;
 }
 
 @layer base {
@@ -36,13 +34,13 @@
 }
 
 @layer components {
-  /* Primary gold accent button */
+  /* Primary navy accent button */
   .btn-gold {
-    @apply bg-gold-500 hover:bg-gold-600 text-white font-sans font-medium tracking-widest uppercase text-xs px-10 py-4 transition-all duration-300 hover:shadow-lg;
+    @apply bg-navy hover:bg-[#031B35] text-white font-sans font-medium tracking-widest uppercase text-xs px-10 py-4 transition-all duration-300;
   }
-  /* Outlined gold button */
+  /* Outlined navy button */
   .btn-outline-gold {
-    @apply border border-gold-500 text-gold-600 hover:bg-gold-500 hover:text-white font-sans font-medium tracking-widest uppercase text-xs px-10 py-4 transition-all duration-300;
+    @apply border border-navy text-navy hover:bg-navy hover:text-white font-sans font-medium tracking-widest uppercase text-xs px-10 py-4 transition-all duration-300;
   }
   /* Dark (black) button */
   .btn-dark {
@@ -52,20 +50,20 @@
     @apply font-serif text-4xl md:text-5xl font-light text-black;
   }
   .section-subtitle {
-    @apply font-sans text-xs tracking-[0.18em] uppercase text-gold-600 font-medium;
+    @apply font-sans text-xs tracking-[0.18em] uppercase text-navy font-medium;
   }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
   }
-  /* Gold divider line */
+  /* Navy divider line */
   .gold-divider {
-    @apply w-12 h-px bg-gold-400 mx-auto;
+    @apply w-12 h-px bg-navy mx-auto;
   }
   .skeleton {
     @apply animate-pulse bg-gray-100 rounded;
   }
   .input-field {
-    @apply w-full border border-gray-200 px-5 py-4 text-sm font-sans focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-400 transition-colors bg-white text-black placeholder:text-gray-400;
+    @apply w-full border border-gray-200 px-5 py-4 text-sm font-sans focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy transition-colors bg-white text-black placeholder:text-gray-400;
   }
   /* Generous page container with more horizontal breathing room */
   .page-container {
@@ -75,17 +73,21 @@
   .section-pad {
     @apply py-20 md:py-28 lg:py-32;
   }
-  /* Subtle warm section background */
+  /* Subtle near-white section background */
   .section-warm {
     @apply bg-champagne;
   }
+  /* Near-white champagne section */
+  .champagne-section {
+    @apply bg-[#F5F7FA];
+  }
 }
 
-/* Scrollbar — warm gold tones */
+/* Scrollbar — navy tones */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #FFFFFF; }
-::-webkit-scrollbar-thumb { background: #D4B47A; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #B08D57; }
+::-webkit-scrollbar-thumb { background: #6B8FB3; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #042241; }
 
 /* Embla Carousel */
 .embla { overflow: hidden; }
