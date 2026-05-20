@@ -11,7 +11,8 @@
  */
 
 const NIVODA_GQL = 'https://integrations.nivoda.net/graphql-loupe360';
-const USD_TO_GBP = parseFloat(process.env.USD_TO_GBP_RATE || '0.79');
+const USD_TO_GBP       = parseFloat(process.env.USD_TO_GBP_RATE || '0.79');
+const DIAMOND_MARKUP   = parseFloat(process.env.DIAMOND_MARKUP   || '1.20'); // 20% profit margin
 
 // ── TypeScript interfaces ──────────────────────────────────────────────────────
 interface NivodaSession {
@@ -187,7 +188,7 @@ function mapDiamond(d: NivodaDiamondItem) {
   const shape = shapePart.charAt(0).toUpperCase() + shapePart.slice(1).toLowerCase();
 
   // Price is in USD *cents* → convert to GBP
-  const priceGBP = Math.round((d.price / 100) * USD_TO_GBP);
+  const priceGBP = Math.round((d.price / 100) * USD_TO_GBP * DIAMOND_MARKUP);
 
   // Lab cert PDF
   const pdfUrl = c.pdfUrl
@@ -356,7 +357,7 @@ function mapDiamondForDb(d: NivodaDiamondItem) {
   if (!VALID_POLISH_SYM.has(symmetry as string)) return null;
 
   // Price USD cents → GBP
-  const priceGBP = Math.round((d.price / 100) * USD_TO_GBP);
+  const priceGBP = Math.round((d.price / 100) * USD_TO_GBP * DIAMOND_MARKUP);
   if (priceGBP <= 0) return null;
 
   // Fluorescence
