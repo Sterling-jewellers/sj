@@ -12,31 +12,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     const data = await res.json();
     const p = data.data ?? data;
 
-    const title       = p.metaTitle       || `${p.name} | ${p.category?.name || 'Fine Jewellery'} | Sterling Jewellers`;
+    const title       = p.metaTitle       || `${p.name} | ${p.category?.name || 'Fine Jewellery'}`;
+    const ogTitle     = p.metaTitle       || `${p.name} | ${p.category?.name || 'Fine Jewellery'} | Sterling Jewellers`;
     const description = p.metaDescription || p.shortDescription || `Buy ${p.name} from Sterling Jewellers. Ethically sourced fine jewellery with free UK delivery & free returns.`;
     const image       = p.images?.[0] || '/og-image.jpg';
     const price       = p.salePrice || p.basePrice;
     const canonical   = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk'}/products/${params.slug}`;
 
-    const keywords = [
-      p.name,
-      p.category?.name,
-      p.style,
-      p.gemstone,
-      p.settingType,
-      ...(p.tags || []),
-      'fine jewellery uk',
-      'buy jewellery online',
-      'sterling jewellers',
-    ].filter(Boolean) as string[];
-
     return {
       title,
       description,
-      keywords: [...new Set(keywords)],
       alternates: { canonical },
       openGraph: {
-        title,
+        title: ogTitle,
         description,
         type:   'website',
         url:    canonical,
@@ -61,7 +49,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       },
     };
   } catch {
-    return { title: 'Product | Sterling Jewellers' };
+    return { title: 'Product Not Found' };
   }
 }
 

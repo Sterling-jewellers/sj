@@ -13,32 +13,32 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     const name        = cat.name || params.slug.replace(/-/g, ' ');
     const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk';
     const canonical   = `${siteUrl}/category/${params.slug}`;
-    const title       = `${name} | Buy Online UK | Sterling Jewellers`;
+    const title       = `${name} | Buy Online UK`;
+    const ogTitle     = `${name} | Sterling Jewellers`;
     const description = cat.description || `Shop our stunning ${name} collection at Sterling Jewellers. Ethically sourced, hallmarked fine jewellery with free UK delivery and free 30-day returns.`;
 
     return {
       title,
       description,
-      keywords: [name, `buy ${name.toLowerCase()} online`, `${name.toLowerCase()} uk`, 'fine jewellery', 'sterling jewellers', 'gold jewellery uk', 'free uk delivery'],
       alternates: { canonical },
       openGraph: {
-        title,
+        title:    ogTitle,
         description,
         url:    canonical,
         images: cat.image
           ? [{ url: cat.image, width: 1200, height: 630, alt: name }]
-          : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: `${name} | Sterling Jewellers` }],
+          : [{ url: '/og-image.jpg', width: 1200, height: 630, alt: ogTitle }],
         siteName: 'Sterling Jewellers',
       },
       twitter: {
         card:        'summary_large_image',
-        title,
+        title:       ogTitle,
         description,
       },
     };
   } catch {
     return {
-      title: `${params.slug.replace(/-/g, ' ')} | Sterling Jewellers`,
+      title: params.slug.replace(/-/g, ' '),
     };
   }
 }

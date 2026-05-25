@@ -1,5 +1,7 @@
 'use client';
 
+import { trackEvent, Events } from '@/lib/analytics';
+
 export default function WhatsAppButton() {
   const waUrl =
     'https://wa.me/447429065954?text=Hi%20Sterling%20Jewellers%2C%20I%27d%20like%20to%20enquire%20about%20your%20jewellery';
@@ -20,6 +22,12 @@ export default function WhatsAppButton() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat with us on WhatsApp"
+        onClick={() =>
+          trackEvent(Events.WHATSAPP_CLICK, {
+            source:    'floating_button',
+            page_path: typeof window !== 'undefined' ? window.location.pathname : '',
+          })
+        }
         className="relative flex items-center justify-center w-14 h-14 rounded-full bg-[#25D366] shadow-lg hover:bg-[#1ebe5d] transition-colors duration-200"
       >
         {/* Official WhatsApp logo SVG */}

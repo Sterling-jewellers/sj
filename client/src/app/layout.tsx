@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Lora, Gantari } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { Providers } from './providers';
 import WhatsAppButton from '@/components/ui/WhatsAppButton';
@@ -33,11 +34,6 @@ export const metadata: Metadata = {
   },
   description:
     'Discover exquisite engagement rings, wedding bands, and fine jewellery. Handcrafted in the UK with ethically sourced diamonds and precious metals.',
-  keywords: [
-    'engagement rings UK', 'diamond engagement rings', 'wedding rings', 'fine jewellery',
-    'bespoke jewellery', 'GIA diamonds', 'platinum rings', 'gold rings', 'UK jeweller',
-    'ethical diamonds', 'custom engagement ring', 'Sterling Jewellers',
-  ],
   authors: [{ name: 'Sterling Jewellers', url: SITE_URL }],
   creator: 'Sterling Jewellers',
   publisher: 'Sterling Jewellers',
@@ -80,6 +76,12 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: SITE_URL,
+    // hreflang — add per-page overrides in child layouts/pages as you expand regions.
+    // en-US / en-AU / en-IE can be added here when needed; x-default stays as GB.
+    languages: {
+      'en-GB': SITE_URL,
+      'x-default': SITE_URL,
+    },
   },
   verification: {
     // Add your Google Search Console verification token here
@@ -93,18 +95,39 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
 };
 
-// Organisation schema — helps Google show rich results in brand SERPs
+// Organisation / LocalBusiness schema — helps Google show rich results
 const orgSchema = {
   '@context': 'https://schema.org',
-  '@type': 'JewelryStore',
+  '@type': ['JewelryStore', 'LocalBusiness'],
   name: 'Sterling Jewellers',
   url: SITE_URL,
   logo: `${SITE_URL}/logo.png`,
+  image: `${SITE_URL}/og-image.jpg`,
   description: 'Fine jewellery and bespoke engagement rings. Ethically sourced, handcrafted in the UK.',
+  foundingDate: '2018',
   address: {
     '@type': 'PostalAddress',
+    streetAddress: '48 Bond Street',
+    addressLocality: 'London',
+    postalCode: 'W1S 1RB',
     addressCountry: 'GB',
   },
+  telephone: '+447429065954',
+  email: 'hello@sterlingjewellers.co.uk',
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      opens: '09:00',
+      closes: '18:00',
+    },
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: 'Sunday',
+      opens: '11:00',
+      closes: '17:00',
+    },
+  ],
   sameAs: [
     'https://www.instagram.com/sterlingjewellers',
     'https://www.facebook.com/sterlingjewellers',
@@ -112,7 +135,10 @@ const orgSchema = {
   priceRange: '£££',
   currenciesAccepted: 'GBP',
   paymentAccepted: 'Cash, Credit Card, Debit Card',
+  hasMap: 'https://maps.google.com/?q=48+Bond+Street,London,W1S+1RB',
 };
+
+const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -124,6 +150,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        {/* Google Analytics 4 — only injected when NEXT_PUBLIC_GA4_ID is set */}
+        {GA4_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA4_ID}', {
+                  page_path: window.location.pathname,
+                  anonymize_ip: true
+                });
+              `}
+            </Script>
+          </>
+        )}
+
         <Providers>{children}</Providers>
         <WhatsAppButton />
         <NewsletterPopup />

@@ -1,9 +1,13 @@
 import { Metadata } from 'next';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk';
+
 export const metadata: Metadata = {
   title: 'Loose Diamonds',
   description: 'Search our collection of certified loose diamonds by shape, carat, cut, colour and clarity. GIA & IGI certified. Free UK delivery.',
-  keywords: ['loose diamonds UK', 'GIA certified diamonds', 'buy diamonds online', 'round brilliant diamonds', 'oval diamonds', 'diamond search'],
+  alternates: {
+    canonical: `${SITE_URL}/diamonds`,
+  },
   openGraph: {
     title: 'Loose Diamonds | Sterling Jewellers',
     description: 'Search certified loose diamonds by shape, carat, cut, colour and clarity. GIA & IGI certified.',

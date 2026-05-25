@@ -1,8 +1,5 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = { title: 'About Us', description: 'The story behind Sterling Jewellers Ltd — crafting fine jewellery since 1987.' };
 
 export default function AboutPage() {
   return (
@@ -20,11 +17,11 @@ export default function AboutPage() {
       <div className="page-container py-20">
         <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
           <div>
-            <p className="section-subtitle mb-4">Est. 1987</p>
-            <h2 className="section-title mb-6">A Legacy of Craftsmanship</h2>
+            <p className="section-subtitle mb-4">Est. 2018</p>
+            <h2 className="section-title mb-6">A Story of Craftsmanship</h2>
             <div className="w-12 h-0.5 bg-gold-400 mb-6" />
             <p className="text-sm font-sans text-gray-600 leading-relaxed mb-4">
-              Every meaningful piece of jewellery begins with a story. Ours started in 2026, not in a showroom, but in a simple conversation between two friends who believed jewellery had lost its emotion. It had become something you buy, not something you feel. So we set out to change that — to create pieces that carry the excitement of a proposal, the depth of a promise, and the beauty of moments that last forever.            </p>
+              Every meaningful piece of jewellery begins with a story. Ours started in 2018, not in a showroom, but in a simple conversation between two friends who believed jewellery had lost its emotion. It had become something you buy, not something you feel. So we set out to change that — to create pieces that carry the excitement of a proposal, the depth of a promise, and the beauty of moments that last forever.            </p>
             <p className="text-sm font-sans text-gray-600 leading-relaxed mb-6">
               With no legacy name behind us, just passion and purpose, we focused on what truly matters — ethically sourced diamonds, honest craftsmanship, and designs that feel personal. Today, we continue to create jewellery that isn’t just worn, but lived with — because to us, it’s never just jewellery, it’s your story.            </p>
             <Link href="/products" className="btn-outline-gold inline-block">Explore Our Collections</Link>
@@ -54,11 +51,11 @@ export default function AboutPage() {
         </div>
 
         {/* CTA */}
-        {/* <div className="bg-charcoal text-white text-center py-16 px-8">
+        <div className="bg-charcoal text-white text-center py-16 px-8">
           <h2 className="font-serif text-4xl font-light mb-4">Visit Our London Boutique</h2>
           <p className="text-sm font-sans text-gray-300 mb-6">48 Bond Street, London, W1S 1RB · Mon–Sat 9am–6pm · Sun 11am–5pm</p>
           <Link href="/contact" className="btn-gold inline-block">Book a Consultation</Link>
-        </div> */}
+        </div>
       </div>
     </div>
   );

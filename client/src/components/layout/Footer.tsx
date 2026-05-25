@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Instagram, Facebook, Youtube, Phone, Mail, Shield, Truck, Award, RefreshCw } from 'lucide-react';
+import { Instagram, Facebook, Youtube, Phone, Mail, MapPin, Shield, Truck, Award, RefreshCw } from 'lucide-react';
 import { RING_BUILDER_ENABLED, DIAMONDS_ENABLED } from '@/lib/features';
 import { newsletterApi } from '@/lib/api';
+import { trackEvent, Events } from '@/lib/analytics';
 
 const trustBadges = [
   { icon: Shield, label: 'Secure Payments', sub: 'SSL Encrypted' },
@@ -15,17 +16,19 @@ const trustBadges = [
 
 export default function Footer() {
   const [email, setEmail] = useState('');
+  const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [error, setError] = useState('');
 
   async function handleSubscribe(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !consent) return;
     setLoading(true);
     setError('');
     try {
       await newsletterApi.subscribe(email);
+      trackEvent(Events.NEWSLETTER_SIGNUP, { source: 'footer' });
       setSubscribed(true);
       setEmail('');
     } catch {
@@ -67,7 +70,7 @@ export default function Footer() {
               <span className="font-sans text-[9px] tracking-[0.4em] uppercase text-gold-400 font-medium">Jewellers Ltd</span>
             </div>
             <p className="text-sm font-sans text-gray-400 leading-relaxed mb-6">
-              Crafting exquisite fine jewellery since 2026. Every piece tells a story of love, crafted with ethically sourced diamonds and precious metals.
+              Crafting exquisite fine jewellery since 2018. Every piece tells a story of love, crafted with ethically sourced diamonds and precious metals.
             </p>
             <div className="flex gap-3">
               {[Instagram, Facebook, Youtube].map((Icon, i) => (
@@ -139,12 +142,12 @@ export default function Footer() {
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Mail size={13} className="text-gold-400" />
-                <span>Sterlingjewellerslimited@gmail.com</span>
+                <span>hello@sterlingjewellers.co.uk</span>
               </div>
-              {/* <div className="flex items-start gap-2 text-sm text-gray-400">
+              <div className="flex items-start gap-2 text-sm text-gray-400">
                 <MapPin size={13} className="text-gold-400 mt-0.5 flex-shrink-0" />
                 <span>48 Bond Street, London, W1S 1RB</span>
-              </div> */}
+              </div>
             </div>
           </div>
         </div>
@@ -169,10 +172,24 @@ export default function Footer() {
                     required
                     className="flex-1 md:w-72 bg-white/5 border border-white/20 px-4 py-3 text-sm font-sans text-white placeholder:text-gray-500 outline-none focus:border-gold-400"
                   />
-                  <button type="submit" disabled={loading} className="btn-gold whitespace-nowrap disabled:opacity-60">
+                  <button type="submit" disabled={loading || !consent} className="btn-gold whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                     {loading ? 'Subscribing…' : 'Subscribe'}
                   </button>
                 </div>
+                {/* GDPR consent — required under UK GDPR / PECR */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                    required
+                    className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 accent-white cursor-pointer"
+                  />
+                  <span className="text-[10px] font-sans text-gray-500 leading-relaxed">
+                    I agree to receive marketing emails. Unsubscribe anytime.{' '}
+                    <Link href="/privacy" className="underline hover:text-gray-300 transition-colors">Privacy Policy</Link>.
+                  </span>
+                </label>
                 {error && <p className="text-xs font-sans text-red-400">{error}</p>}
               </form>
             )}

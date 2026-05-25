@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { newsletterApi } from '@/lib/api';
+import { trackEvent, Events } from '@/lib/analytics';
 
 const STORAGE_KEY = 'sj_newsletter_dismissed';
 const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -28,6 +29,7 @@ function dismiss() {
 export default function NewsletterPopup() {
   const [visible, setVisible] = useState(false);
   const [email, setEmail] = useState('');
+  const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -67,11 +69,12 @@ export default function NewsletterPopup() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !consent) return;
     setLoading(true);
     setError('');
     try {
       await newsletterApi.subscribe(email);
+      trackEvent(Events.NEWSLETTER_SIGNUP, { source: 'popup' });
       setSuccess(true);
       dismiss();
       setTimeout(() => setVisible(false), 3000);
@@ -134,10 +137,26 @@ export default function NewsletterPopup() {
                   required
                   className="w-full border border-gray-200 px-4 py-3 text-sm font-sans text-charcoal placeholder:text-gray-400 outline-none focus:border-gold-500 transition-colors"
                 />
+
+                {/* GDPR consent checkbox — required under UK GDPR / PECR */}
+                <label className="flex items-start gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                    required
+                    className="mt-0.5 flex-shrink-0 w-4 h-4 accent-charcoal cursor-pointer"
+                  />
+                  <span className="text-[11px] font-sans text-gray-500 leading-relaxed">
+                    I agree to receive marketing emails from Sterling Jewellers. You can unsubscribe at any time.{' '}
+                    <a href="/privacy" className="underline hover:text-charcoal transition-colors">Privacy Policy</a>.
+                  </span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full bg-gold-500 text-white text-xs font-sans font-semibold tracking-widest uppercase py-3.5 hover:bg-gold-600 transition-colors disabled:opacity-60"
+                  disabled={loading || !consent}
+                  className="w-full bg-gold-500 text-white text-xs font-sans font-semibold tracking-widest uppercase py-3.5 hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Claiming…' : 'Claim My Discount'}
                 </button>
@@ -153,11 +172,6 @@ export default function NewsletterPopup() {
                   No thanks
                 </button>
               </div>
-
-              {/* Small print */}
-              <p className="text-[10px] font-sans text-gray-300 text-center mt-4 leading-relaxed">
-                By subscribing you agree to receive our newsletter. Unsubscribe anytime.
-              </p>
             </>
           )}
         </div>

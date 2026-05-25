@@ -386,8 +386,8 @@ export default function CategoryClient({ slug }: { slug: string }) {
                 </>
               ) : (
                 <>
-                  <p className="font-serif text-xl text-charcoal">No products yet</p>
-                  <p className="mt-2 text-[13px] font-sans text-gray-400">Run a Hanron sync from your local server to populate this collection.</p>
+                  <p className="font-serif text-xl text-charcoal">Coming Soon</p>
+                  <p className="mt-2 text-[13px] font-sans text-gray-400">This collection is coming soon. Explore our other collections in the meantime.</p>
                 </>
               )}
             </div>

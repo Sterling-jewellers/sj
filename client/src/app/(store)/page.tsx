@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import HeroBanner from '@/components/home/HeroBanner';
 
 export const metadata: Metadata = {
-  title: 'Sterling Jewellers | Fine Jewellery & Engagement Rings',
+  title: { absolute: 'Sterling Jewellers | Fine Jewellery & Engagement Rings' },
   description: 'Discover exquisite engagement rings, wedding bands, and fine jewellery. Handcrafted in the UK with ethically sourced diamonds and precious metals. Free UK delivery.',
   alternates: {
     canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk',
