@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import Breadcrumb from '@/components/layout/Breadcrumb';
-import { articles } from '../page';
+import { articles } from '@/lib/journal-articles';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://sterlingjewellers.co.uk';
 const SLUG = 'how-to-measure-ring-size';
