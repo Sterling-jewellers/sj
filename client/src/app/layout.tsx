@@ -154,7 +154,7 @@ const orgSchema = {
   hasMap: 'https://maps.google.com/?q=48+Bond+Street,London,W1S+1RB',
 };
 
-const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
+const GA4_ID = 'G-74J7PQ8E6W';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -164,26 +164,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       </head>
       <body>
-        {/* Google Analytics 4 — only injected when NEXT_PUBLIC_GA4_ID is set */}
-        {GA4_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script id="ga4-init" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GA4_ID}', {
-                  page_path: window.location.pathname,
-                  anonymize_ip: true
-                });
-              `}
-            </Script>
-          </>
-        )}
+        {/* Google Analytics 4 */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA4_ID}', {
+              page_path: window.location.pathname,
+              anonymize_ip: true
+            });
+          `}
+        </Script>
 
         <Providers>{children}</Providers>
         <WhatsAppButton />
