@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api';
@@ -15,6 +16,11 @@ export default function AccountPage() {
   const { user, logout } = useAuthStore();
   const router = useRouter();
 
+  // Guard: redirect to sign-in AFTER mount (avoids SSR location error)
+  useEffect(() => {
+    if (!user) router.push('/sign-in');
+  }, [user, router]);
+
   const { data } = useQuery({
     queryKey: ['my-orders'],
     queryFn: () => ordersApi.getMyOrders(),
@@ -23,10 +29,8 @@ export default function AccountPage() {
 
   const orders: IOrder[] = data?.data?.slice(0, 3) || [];
 
-  if (!user) {
-    router.push('/sign-in');
-    return null;
-  }
+  // Render nothing during the server pass or while redirecting
+  if (!user) return null;
 
   const handleLogout = () => {
     logout();

@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { useEffect } from 'react';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuthStore } from '@/store/authStore';
 import Link from 'next/link';
@@ -19,10 +20,13 @@ export default function WishlistPage() {
   const { items, removeItem } = useWishlistStore();
   const { addItem } = useCartStore();
 
-  if (!user) {
-    router.push('/sign-in?redirect=/account/wishlist');
-    return null;
-  }
+  // Guard: redirect to sign-in AFTER mount (avoids SSR location error)
+  useEffect(() => {
+    if (!user) router.push('/sign-in?redirect=/account/wishlist');
+  }, [user, router]);
+
+  // Render nothing during the server pass or while redirecting
+  if (!user) return null;
 
   const handleMoveToCart = (product: IProduct) => {
     addItem(product, { quantity: 1, selectedMetal: product.metalOptions?.find((m) => m.isDefault)?.type });
