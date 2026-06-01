@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Phone, Mail, MapPin, Clock, Loader2, CheckCircle2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import Breadcrumb from '@/components/layout/Breadcrumb';
 
 interface ContactForm { name: string; email: string; phone?: string; subject: string; message: string; }
 
@@ -19,7 +20,9 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="bg-ivory py-16">
+    <div className="bg-ivory">
+      <Breadcrumb items={[{ label: 'Contact Us' }]} />
+      <div className="py-16">
       <div className="page-container">
         <div className="text-center mb-14">
           <p className="section-subtitle mb-3">Get In Touch</p>
@@ -99,6 +102,7 @@ export default function ContactPage() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

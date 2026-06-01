@@ -12,6 +12,7 @@ import { RING_BUILDER_ENABLED } from '@/lib/features';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import Breadcrumb from '@/components/layout/Breadcrumb';
 
 // ── Filter config ─────────────────────────────────────────────────────────────
 const METAL_OPTIONS = ['Platinum', 'White Gold', 'Yellow Gold', 'Rose Gold'];
@@ -276,8 +277,13 @@ export default function CategoryClient({ slug }: { slug: string }) {
     </>
   );
 
+  const categoryName = category?.name ?? slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
   return (
     <div className="bg-white min-h-screen">
+
+      {/* ── Breadcrumb ── */}
+      <Breadcrumb items={[{ label: categoryName }]} />
 
       {/* ── Category hero ── */}
       <div className="bg-[#111] text-white">
@@ -399,13 +405,16 @@ export default function CategoryClient({ slug }: { slug: string }) {
         </div>
       </div>
 
+      {/* ── SEO content block — rendered below grid, above trust bar ── */}
+      <CategorySeoContent slug={slug} categoryName={categoryName} />
+
       {/* ── Trust bar ── */}
       <div className="border-t border-gray-100 bg-[#fafaf9] mt-12">
         <div className="max-w-[1400px] mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           {[
             { icon: '💎', h: 'GIA & IGI Certified',  p: 'Every diamond graded' },
             { icon: '🔧', h: 'Handcrafted in UK',    p: 'Master craftsmen'     },
-            { icon: '🔄', h: '60-Day Returns',       p: 'No questions asked'   },
+            { icon: '🔄', h: '30-Day Returns',       p: 'No questions asked'   },
             { icon: '🛡️', h: 'Lifetime Warranty',    p: 'Free servicing'       },
           ].map(({ icon, h, p }) => (
             <div key={h} className="flex flex-col items-center gap-2">
@@ -415,6 +424,130 @@ export default function CategoryClient({ slug }: { slug: string }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Per-category SEO content blocks (placed below product grid) ─────────────
+// Each block is ~500 words of buyer-intent evergreen copy. Helps rank head terms.
+
+const categoryContent: Record<string, { heading: string; body: string[]; faqs: { q: string; a: string }[] }> = {
+  'engagement-rings': {
+    heading: 'How to Choose the Perfect Engagement Ring',
+    body: [
+      'An engagement ring is one of the most significant purchases you will ever make — a symbol worn every day for a lifetime. At Sterling Jewellers, every engagement ring in our collection is handcrafted in the UK using ethically sourced diamonds and certified precious metals, giving you a piece that is as meaningful as the moment it marks.',
+      'The most popular styles in our collection include the timeless solitaire, where a single diamond takes centre stage; the romantic halo setting, where a ring of smaller diamonds amplifies the centre stone; and the modern three-stone ring, representing past, present and future. We also offer pavé bands, vintage-inspired designs with intricate milgrain detail, and sleek contemporary east-west settings.',
+      'When choosing a metal, platinum remains the gold standard for engagement rings. It is naturally white, hypoallergenic, and exceptionally durable — it does not wear away like white gold, which requires periodic rhodium plating. For a warmer look, 18ct yellow gold and 18ct rose gold are perennial favourites, especially paired with round brilliant or oval-cut diamonds.',
+      'Every diamond in our engagement ring collection is certified by the GIA (Gemological Institute of America) or IGI (International Gemological Institute), the two most respected grading laboratories in the world. Your certificate confirms the exact carat weight, colour, clarity and cut of your stone — giving you complete confidence in your purchase.',
+      'Not sure of the right size? Use our free ring sizing guide or request a complimentary ring sizer by post. Our gemmologists are also available for a free consultation — in-store at our London boutique or by video call.',
+    ],
+    faqs: [
+      { q: 'What is the average price of an engagement ring in the UK?', a: 'The average spend on an engagement ring in the UK is between £1,500 and £3,000, though many couples invest £3,000–£8,000 for a GIA-certified diamond ring. At Sterling Jewellers, our collection ranges from under £1,000 to bespoke commissions over £20,000.' },
+      { q: 'What engagement ring style is most popular?', a: 'The round brilliant solitaire is the most popular engagement ring style in the UK, prized for its timeless simplicity and exceptional sparkle. Oval halo rings have seen rapid growth in recent years, driven by their elongating effect on the finger and vintage-inspired romance.' },
+      { q: 'Can I customise an engagement ring?', a: 'Yes. Use our Ring Builder to choose your setting and diamond online, or speak to our team for a fully bespoke commission. We can work from a sketch, a reference image, or an heirloom stone you wish to re-set.' },
+    ],
+  },
+  'wedding-rings': {
+    heading: 'Wedding Rings: A Buyer\'s Guide',
+    body: [
+      'A wedding ring is worn every day for the rest of your life — which means the choice of metal, width and finish matters more than most people realise. At Sterling Jewellers, our wedding ring collection spans platinum, 18ct gold, and 9ct gold in a range of widths from 2mm court bands to bold 6mm flat court styles.',
+      'Platinum wedding rings are the most durable choice. The metal develops a natural patina over time that many couples love, and it can be polished back to a mirror finish at any point. Unlike white gold, platinum does not fade or require replating.',
+      'Yellow gold and rose gold wedding rings offer warmth and character. Our 18ct gold bands are 75% pure gold, making them richer in colour and more precious than 9ct. For everyday wear, 9ct gold offers excellent scratch resistance at a lower price point.',
+      'For couples buying both an engagement ring and wedding ring together, we recommend choosing metals that complement each other — or opting for a perfectly flush fitted wedding ring designed specifically to nest alongside your engagement ring.',
+      'All our wedding rings are hallmarked at the London Assay Office, confirming their metal purity, and come with free engraving of up to 30 characters. Standard ring sizing is available for two years after purchase at no charge.',
+    ],
+    faqs: [
+      { q: 'Should a wedding ring match the engagement ring?', a: 'Traditionally yes, but modern couples often mix metals intentionally. White gold or platinum engagement rings are frequently paired with yellow gold wedding bands for an on-trend mixed-metal look. The key is that both rings sit comfortably together on the finger.' },
+      { q: 'What width wedding ring should I choose?', a: 'A 2–3mm band suits slender fingers and a delicate look. A 4–5mm band is the most versatile and the bestselling width at Sterling Jewellers. Wider bands of 6mm+ make a bolder statement and suit those with broader fingers.' },
+      { q: 'How long does it take to make a bespoke wedding ring?', a: 'Standard rings from our collection are available within 5–7 working days. Bespoke commissions, custom engravings and made-to-order pieces typically take 3–4 weeks. We recommend allowing 6 weeks before your wedding date.' },
+    ],
+  },
+  'eternity-rings': {
+    heading: 'Eternity Rings: Styles, Occasions & How to Choose',
+    body: [
+      'An eternity ring is one of the most versatile and emotionally resonant pieces of fine jewellery. Traditionally given to mark the birth of a child or a significant anniversary, eternity rings are increasingly worn as a statement piece in their own right.',
+      'At Sterling Jewellers, our eternity ring collection is available in two main styles: the full eternity ring, where diamonds encircle the band completely, and the half eternity ring, where stones run along the top half of the band. Full eternity rings create uninterrupted sparkle but require a specific ring size; half eternity rings are easier to resize and more comfortable for everyday wear.',
+      'The most popular cuts for eternity rings are round brilliant diamonds, known for their classic sparkle, and princess cuts, which allow more stones to sit closer together. Baguette diamonds offer an Art Deco elegance. Our eternity rings are available in platinum, 18ct white gold, yellow gold and rose gold.',
+      'When pairing an eternity ring with an engagement ring and wedding band, a popular arrangement is to wear the wedding band and eternity ring on either side of the engagement ring as a bridal set.',
+    ],
+    faqs: [
+      { q: 'When should you give an eternity ring?', a: 'Traditionally given on a milestone anniversary (first, fifth or tenth) or to celebrate the birth of a child. Today, many couples also give eternity rings as an upgrade to the original engagement ring after a few years of marriage.' },
+      { q: 'Can eternity rings be resized?', a: 'Half eternity rings can be resized in most cases. Full eternity rings — where stones run all the way around — cannot be resized, so it is essential to measure your ring size carefully. We offer a free ring sizer by post.' },
+    ],
+  },
+  'diamond-rings': {
+    heading: 'Diamond Rings: Understanding the 4 Cs',
+    body: [
+      'Buying a diamond ring is a significant investment, and understanding the 4 Cs — Cut, Colour, Clarity and Carat — will help you get the best diamond for your budget.',
+      'Cut is the most important factor. A well-cut diamond reflects light beautifully and appears larger and more brilliant than a poorly cut stone of the same carat weight. Our diamonds are graded Excellent or Very Good cut by the GIA.',
+      'Colour is graded on a scale from D (completely colourless) to Z (noticeable yellow tint). For engagement rings, we recommend stones in the D–H range for a bright, white appearance. I–J stones offer excellent value and appear white to the naked eye when mounted in white metal.',
+      'Clarity refers to the presence of inclusions (internal) or blemishes (surface). Grades range from Flawless to Included. For the best balance of beauty and value, VS1–VS2 (Very Slightly Included) stones are ideal — any inclusions are invisible to the naked eye.',
+      'Carat is a measure of weight (1 carat = 0.2 grams), not size. Two diamonds of the same carat weight can appear very different depending on cut quality. A well-cut 0.90ct round brilliant will often appear larger than a poorly cut 1.00ct stone.',
+    ],
+    faqs: [
+      { q: 'What is the difference between GIA and IGI certified diamonds?', a: 'The GIA (Gemological Institute of America) is widely considered the most stringent grading laboratory. IGI (International Gemological Institute) is equally trusted and is the primary certifier for lab-grown diamonds. Both provide reliable and detailed grading reports.' },
+      { q: 'Are lab-grown diamonds real diamonds?', a: 'Yes. Lab-grown diamonds are chemically, physically and optically identical to mined diamonds. They are graded by the same criteria (4 Cs) and certified by the same laboratories. They typically cost 50–70% less than equivalent natural diamonds.' },
+    ],
+  },
+};
+
+// Generic fallback for categories without a specific content block
+const genericContent = (name: string) => ({
+  heading: `${name}: Handcrafted Fine Jewellery`,
+  body: [
+    `Our ${name.toLowerCase()} collection is handcrafted in the UK using ethically sourced materials and certified precious metals. Every piece is quality-checked by our master craftsmen before dispatch.`,
+    `Browse our full range of ${name.toLowerCase()} available in platinum, 18ct gold and 9ct gold. All orders include free UK delivery, a 30-day returns guarantee, and our lifetime craftsmanship warranty.`,
+  ],
+  faqs: [] as { q: string; a: string }[],
+});
+
+function CategorySeoContent({ slug, categoryName }: { slug: string; categoryName: string }) {
+  const content = categoryContent[slug] ?? genericContent(categoryName);
+
+  const faqSchema = content.faqs.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: content.faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  } : null;
+
+  return (
+    <div className="bg-white border-t border-gray-100 mt-16">
+      {faqSchema && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      )}
+      <div className="page-container py-16 max-w-4xl mx-auto">
+        <h2 className="font-serif text-2xl font-light text-charcoal mb-6">{content.heading}</h2>
+        <div className="w-12 h-px bg-navy mb-8" />
+
+        <div className="space-y-4 mb-10">
+          {content.body.map((para, i) => (
+            <p key={i} className="text-sm font-sans text-gray-600 leading-relaxed">{para}</p>
+          ))}
+        </div>
+
+        {content.faqs.length > 0 && (
+          <>
+            <h3 className="font-serif text-xl font-light text-charcoal mb-5">Frequently Asked Questions</h3>
+            <div className="space-y-4">
+              {content.faqs.map((faq, i) => (
+                <details key={i} className="group border border-gray-100">
+                  <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none">
+                    <span className="font-sans text-sm font-medium text-charcoal">{faq.q}</span>
+                    <span className="text-gray-400 group-open:rotate-45 transition-transform text-lg leading-none ml-4 flex-shrink-0">+</span>
+                  </summary>
+                  <div className="px-5 pb-5 border-t border-gray-100">
+                    <p className="text-sm font-sans text-gray-600 leading-relaxed pt-4">{faq.a}</p>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

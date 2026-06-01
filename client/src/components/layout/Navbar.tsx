@@ -45,6 +45,16 @@ const MOBILE_SUB_LINKS: Record<string, { label: string; href: string }[]> = {
     { label: 'Natural Diamonds',   href: '/diamonds?type=natural' },
     { label: 'Lab Grown Diamonds', href: '/diamonds?type=lab' },
     { label: 'Diamond Education',  href: '/diamond-education' },
+    { label: 'The 4 Cs Explained', href: '/journal/4-cs-of-diamonds' },
+  ],
+  'Journal': [
+    { label: 'All Guides',                       href: '/journal' },
+    { label: 'The 4 Cs of Diamonds',             href: '/journal/4-cs-of-diamonds' },
+    { label: 'Lab vs Natural Diamonds',          href: '/journal/lab-grown-vs-natural-diamonds' },
+    { label: 'How to Measure Ring Size',         href: '/journal/how-to-measure-ring-size' },
+    { label: 'The Ultimate Proposal Guide',      href: '/journal/how-to-plan-a-proposal' },
+    { label: 'Bespoke Design',                   href: '/bespoke' },
+    { label: 'Visit Our Boutique',               href: '/visit' },
   ],
   'Gifts': [
     { label: 'Shop All Gifts',      href: '/products?occasion=gift' },
@@ -65,6 +75,7 @@ const allNavLinks = [
   { label: 'Diamonds',       href: '/diamonds',                  hasMenu: true,  ringBuilder: false, diamonds: true  },
   { label: 'Gifts',          href: '/products?occasion=gift',    hasMenu: true,  ringBuilder: false, diamonds: false },
   { label: 'Create Your Ring', href: '/custom-ring',             hasMenu: false, ringBuilder: true,  diamonds: false },
+  { label: 'Journal',        href: '/journal',                   hasMenu: true,  ringBuilder: false, diamonds: false },
   { label: 'Book Appointment', href: '/book-appointment',        hasMenu: false, ringBuilder: false, diamonds: false },
 ];
 

@@ -15,10 +15,22 @@ const faqs = [
   { q: 'Do you buy or part-exchange old jewellery?', a: 'We do offer part-exchange on selected pieces. Visit our boutique or contact us for a free valuation. We assess each piece individually.' },
 ];
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+
 export default function FAQPage() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
     <div className="bg-ivory py-16">
       <div className="page-container max-w-3xl">
         <div className="text-center mb-14">
@@ -51,5 +63,6 @@ export default function FAQPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -11,6 +11,7 @@ import { RING_BUILDER_ENABLED } from '@/lib/features';
 import Image from 'next/image';
 import { LayoutGrid, List, Search, RotateCcw, ChevronDown, ChevronUp, Gem, FlaskConical, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Breadcrumb from '@/components/layout/Breadcrumb';
 
 // Shape-specific diamond photos — fallback per shape for Nivoda diamonds without imageUrl
 const DIAMOND_PHOTOS: Record<string, string> = {
@@ -568,22 +569,77 @@ function DiamondSearchInner() {
 }
 
 // ─── Page wrapper (Suspense needed for useSearchParams) ───────────────────────
-export default function DiamondSearchPage() {
+// ── 4Cs trust strip rendered above the search ──────────────────────────────
+function DiamondTrustStrip() {
+  const cs = [
+    { letter: 'C', name: 'Cut', body: 'The most important factor. An excellent cut maximises brilliance, fire and scintillation — making the diamond appear larger and more radiant than its carat weight suggests.' },
+    { letter: 'C', name: 'Colour', body: 'Graded D (colourless) to Z (light yellow). We recommend D–H for a bright white appearance. I–J stones offer outstanding value and appear white when set in platinum or white gold.' },
+    { letter: 'C', name: 'Clarity', body: 'Measures inclusions and blemishes. VS1–VS2 (Very Slightly Included) is the sweet spot — any inclusions are invisible to the naked eye yet the price premium over FL is significant.' },
+    { letter: 'C', name: 'Carat', body: 'Carat is a unit of weight (1ct = 0.2g), not size. Two diamonds of the same carat can look very different depending on cut. A well-cut 0.90ct often appears larger than a poorly cut 1.00ct.' },
+  ];
   return (
-    <Suspense fallback={
-      <div className="bg-ivory min-h-screen">
-        <div className="bg-charcoal py-8">
-          <div className="page-container text-center">
-            <p className="section-subtitle text-gold-400 mb-2">GIA &amp; IGI Certified</p>
-            <h1 className="font-serif text-4xl font-light text-white">Choose Your Diamond</h1>
+    <div className="bg-[#F5F7FA] border-b border-gray-200">
+      <div className="page-container py-10">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <div>
+            <p className="section-subtitle mb-1">Before You Search</p>
+            <h2 className="font-serif text-2xl font-light text-charcoal">Understanding the 4 Cs</h2>
           </div>
+          <a href="/journal/4-cs-of-diamonds" className="text-xs font-sans font-medium text-navy hover:underline underline-offset-2">
+            Read the full guide →
+          </a>
         </div>
-        <div className="page-container py-20 text-center">
-          <div className="animate-spin w-8 h-8 border-2 border-gold-400 border-t-transparent rounded-full mx-auto" />
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {cs.map((c) => (
+            <div key={c.name} className="bg-white border border-gray-100 p-5">
+              <div className="w-8 h-8 bg-navy flex items-center justify-center mb-4">
+                <span className="font-serif text-xs font-light text-white">{c.letter}</span>
+              </div>
+              <p className="font-sans font-semibold text-sm text-charcoal mb-2">{c.name}</p>
+              <p className="text-xs font-sans text-gray-500 leading-relaxed">{c.body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 grid md:grid-cols-3 gap-4 text-center">
+          {[
+            { icon: '🏆', h: 'GIA & IGI Certified', p: 'Every diamond comes with a full grading certificate' },
+            { icon: '🌍', h: 'Ethically Sourced', p: 'Conflict-free, Kimberley Process certified' },
+            { icon: '🔬', h: 'Expert Guidance', p: 'Our gemmologists are available 7 days a week' },
+          ].map(({ icon, h, p }) => (
+            <div key={h} className="bg-white border border-gray-100 py-4 px-5 flex items-center gap-4">
+              <span className="text-2xl flex-shrink-0">{icon}</span>
+              <div className="text-left">
+                <p className="text-xs font-sans font-semibold text-charcoal">{h}</p>
+                <p className="text-[11px] font-sans text-gray-400 mt-0.5">{p}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-    }>
-      <DiamondSearchInner />
-    </Suspense>
+    </div>
+  );
+}
+
+export default function DiamondSearchPage() {
+  return (
+    <>
+      <Breadcrumb items={[{ label: 'Diamonds' }]} />
+      <DiamondTrustStrip />
+      <Suspense fallback={
+        <div className="bg-ivory min-h-screen">
+          <div className="bg-charcoal py-8">
+            <div className="page-container text-center">
+              <p className="section-subtitle text-gold-400 mb-2">GIA &amp; IGI Certified</p>
+              <h1 className="font-serif text-4xl font-light text-white">Choose Your Diamond</h1>
+            </div>
+          </div>
+          <div className="page-container py-20 text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-gold-400 border-t-transparent rounded-full mx-auto" />
+          </div>
+        </div>
+      }>
+        <DiamondSearchInner />
+      </Suspense>
+    </>
   );
 }

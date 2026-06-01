@@ -95,6 +95,22 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
 };
 
+// WebSite schema — enables the Sitelinks Search Box in Google SERPs
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Sterling Jewellers',
+  url: SITE_URL,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${SITE_URL}/products?q={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
 // Organisation / LocalBusiness schema — helps Google show rich results
 const orgSchema = {
   '@context': 'https://schema.org',
@@ -144,10 +160,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-GB" className={`${lora.variable} ${gantari.variable}`}>
       <head>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
-        />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       </head>
       <body>
         {/* Google Analytics 4 — only injected when NEXT_PUBLIC_GA4_ID is set */}

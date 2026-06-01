@@ -1,9 +1,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import Breadcrumb from '@/components/layout/Breadcrumb';
 
 export default function AboutPage() {
   return (
     <div className="bg-ivory">
+      <Breadcrumb items={[{ label: 'About Us' }]} />
       {/* Hero */}
       <div className="relative h-72 md:h-96 overflow-hidden">
         <Image src="https://images.unsplash.com/photo-1506630448388-4e683c67ddb0?w=1600&h=600&fit=crop" alt="About Sterling Jewellers" fill className="object-cover" />

@@ -724,6 +724,51 @@ function JewelleryMenu() {
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
+function JournalMenu() {
+  const guides = [
+    { title: 'The 4 Cs of Diamonds', sub: 'Cut, colour, clarity and carat explained', href: '/journal/4-cs-of-diamonds' },
+    { title: 'Lab vs Natural Diamonds', sub: 'An honest comparison', href: '/journal/lab-grown-vs-natural-diamonds' },
+    { title: 'How to Measure Ring Size', sub: 'Three methods for at-home accuracy', href: '/journal/how-to-measure-ring-size' },
+    { title: 'The Proposal Planning Guide', sub: 'From ring to the perfect moment', href: '/journal/how-to-plan-a-proposal' },
+  ];
+  return (
+    <div className="page-container py-10">
+      <div className="grid grid-cols-[1fr_auto] gap-12">
+        <div>
+          <p className="text-[9px] font-sans tracking-[0.25em] uppercase text-gray-400 mb-6">Expert Guides</p>
+          <div className="grid grid-cols-2 gap-4">
+            {guides.map((g) => (
+              <Link key={g.href} href={g.href} className="group flex gap-4 p-4 border border-gray-100 hover:border-navy transition-colors">
+                <div>
+                  <p className="text-sm font-sans font-medium text-charcoal group-hover:text-navy transition-colors">{g.title}</p>
+                  <p className="text-[11px] font-sans text-gray-400 mt-0.5">{g.sub}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <Link href="/journal" className="inline-block mt-5 text-xs font-sans font-medium text-navy hover:underline">
+            View all guides →
+          </Link>
+        </div>
+        <div className="w-56 space-y-3">
+          <p className="text-[9px] font-sans tracking-[0.25em] uppercase text-gray-400 mb-4">Quick Links</p>
+          {[
+            { label: 'Bespoke Design', href: '/bespoke' },
+            { label: 'Visit Our Boutique', href: '/visit' },
+            { label: 'Book a Consultation', href: '/book-appointment' },
+            { label: 'Ring Size Guide', href: '/size-guide' },
+            { label: 'Diamond Education', href: '/diamond-education' },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} className="block text-sm font-sans text-gray-600 hover:text-charcoal transition-colors py-1 border-b border-gray-50">
+              {l.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MegaMenu({ activeMenu }: { activeMenu: string }) {
   return (
     <div className="absolute top-full left-0 right-0 bg-ivory border-t border-gray-100 shadow-2xl z-50 animate-fade-in">
@@ -732,6 +777,7 @@ export default function MegaMenu({ activeMenu }: { activeMenu: string }) {
       {activeMenu === 'Fine Jewellery' && <JewelleryMenu />}
       {activeMenu === 'Diamonds'       && DIAMONDS_ENABLED && <DiamondsMenu />}
       {activeMenu === 'Gifts'          && <GiftsMenu />}
+      {activeMenu === 'Journal'        && <JournalMenu />}
     </div>
   );
 }

@@ -101,6 +101,7 @@ export default function Footer() {
               {[
                 ...(RING_BUILDER_ENABLED ? [{ label: 'Create Your Ring', href: '/custom-ring' }] : []),
                 ...(DIAMONDS_ENABLED     ? [{ label: 'Diamond Search',   href: '/diamonds'     }] : []),
+                { label: 'Bespoke Design', href: '/bespoke' },
                 { label: 'Ring Size Guide', href: '/size-guide' },
                 { label: 'Jewellery Care', href: '/jewellery-care' },
                 { label: 'Engraving Service', href: '/engraving' },
@@ -119,6 +120,8 @@ export default function Footer() {
             <h4 className="text-xs font-sans font-semibold tracking-widest uppercase text-gold-400 mb-5">Help & Info</h4>
             <ul className="space-y-3">
               {[
+                { label: 'Visit Our Boutique', href: '/visit' },
+                { label: 'The Journal', href: '/journal' },
                 { label: 'About Us', href: '/about' },
                 { label: 'Contact Us', href: '/contact' },
                 { label: 'FAQ', href: '/faq' },
