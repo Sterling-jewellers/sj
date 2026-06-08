@@ -9,7 +9,7 @@ export default function PromoBanner() {
         {/* Left - Diamond search */}
         <div className="relative h-80 md:h-96 group overflow-hidden">
           <Image
-            src="https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?w=800&h=600&fit=crop"
+            src="https://res.cloudinary.com/dzwnc3gkw/image/upload/v1780913682/in_trend_new-1920x550_stcsxu.jpg"
             alt="Diamond Search"
             fill className="object-cover group-hover:scale-105 transition-transform duration-700"
           />

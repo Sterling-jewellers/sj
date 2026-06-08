@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100" width="1800" height="1100">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#042241"/>
+      <stop offset="100%" stop-color="#000d1a"/>
+    </linearGradient>
+    <linearGradient id="gold4" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C9A84C"/>
+      <stop offset="50%" stop-color="#F0D878"/>
+      <stop offset="100%" stop-color="#C9A84C"/>
+    </linearGradient>
+    <radialGradient id="centreLight" cx="50%" cy="45%" r="30%">
+      <stop offset="0%" stop-color="#C9A84C" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#042241" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1800" height="1100" fill="url(#bg4)"/>
+  <rect width="1800" height="1100" fill="url(#centreLight)"/>
+
+  <!-- Fine dot grid -->
+  <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="0.5" fill="#ffffff" fill-opacity="0.04"/>
+  </pattern>
+  <rect width="1800" height="1100" fill="url(#dots)"/>
+
+  <!-- Main decorative frame — double border -->
+  <rect x="65" y="50" width="1670" height="1000" fill="none" stroke="#C9A84C" stroke-width="0.8" stroke-opacity="0.25"/>
+  <rect x="80" y="65" width="1640" height="970" fill="none" stroke="#C9A84C" stroke-width="0.3" stroke-opacity="0.12"/>
+
+  <!-- Corner ornament (all 4) -->
+  <g stroke="#C9A84C" stroke-width="2" stroke-opacity="0.65" fill="none">
+    <!-- TL -->
+    <path d="M65,130 L65,50 L145,50"/>
+    <line x1="65" y1="90" x2="95" y2="90"/>
+    <!-- TR -->
+    <path d="M1655,50 L1735,50 L1735,130"/>
+    <line x1="1705" y1="90" x2="1735" y2="90"/>
+    <!-- BL -->
+    <path d="M65,920 L65,1050 L145,1050"/>
+    <line x1="65" y1="1010" x2="95" y2="1010"/>
+    <!-- BR -->
+    <path d="M1655,1050 L1735,1050 L1735,920"/>
+    <line x1="1705" y1="1010" x2="1735" y2="1010"/>
+  </g>
+
+  <!-- Craftsman's compass / design tool illustration -->
+  <!-- Compass circle -->
+  <circle cx="900" cy="400" r="160" fill="none" stroke="#C9A84C" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4 6"/>
+  <circle cx="900" cy="400" r="130" fill="none" stroke="#C9A84C" stroke-width="0.5" stroke-opacity="0.2"/>
+
+  <!-- Compass arm 1 (pointing upper-right) -->
+  <line x1="780" y1="520" x2="1020" y2="280" stroke="url(#gold4)" stroke-width="2.5" stroke-opacity="0.7"/>
+  <!-- Compass pivot point -->
+  <circle cx="900" cy="400" r="8" fill="#C9A84C" fill-opacity="0.8"/>
+  <circle cx="900" cy="400" r="3" fill="#042241"/>
+  <!-- Compass point ends -->
+  <polygon points="1015,275 1030,290 1010,292" fill="#C9A84C" fill-opacity="0.7"/>
+  <polygon points="785,525 770,510 790,508" fill="#C9A84C" fill-opacity="0.7"/>
+
+  <!-- Compass arm 2 (perpendicular) -->
+  <line x1="780" y1="280" x2="1020" y2="520" stroke="#C9A84C" stroke-width="1" stroke-opacity="0.3"/>
+
+  <!-- Tick marks on compass circle -->
+  <line x1="900" y1="238" x2="900" y2="252" stroke="#C9A84C" stroke-width="1" stroke-opacity="0.5"/>
+  <line x1="900" y1="548" x2="900" y2="562" stroke="#C9A84C" stroke-width="1" stroke-opacity="0.5"/>
+  <line x1="738" y1="400" x2="752" y2="400" stroke="#C9A84C" stroke-width="1" stroke-opacity="0.5"/>
+  <line x1="1048" y1="400" x2="1062" y2="400" stroke="#C9A84C" stroke-width="1" stroke-opacity="0.5"/>
+
+  <!-- Decorative sketch lines (blueprint aesthetic) -->
+  <line x1="600" y1="150" x2="600" y2="950" stroke="#C9A84C" stroke-width="0.3" stroke-opacity="0.06"/>
+  <line x1="1200" y1="150" x2="1200" y2="950" stroke="#C9A84C" stroke-width="0.3" stroke-opacity="0.06"/>
+  <line x1="300" y1="400" x2="1500" y2="400" stroke="#C9A84C" stroke-width="0.3" stroke-opacity="0.06"/>
+
+  <!-- Top and bottom gold rules -->
+  <line x1="720" y1="590" x2="1080" y2="590" stroke="url(#gold4)" stroke-width="0.8" stroke-opacity="0.45"/>
+  <line x1="820" y1="840" x2="980" y2="840" stroke="#C9A84C" stroke-width="0.8" stroke-opacity="0.3"/>
+
+  <!-- Wordmark -->
+  <text x="900" y="1015" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#C9A84C" fill-opacity="0.3" letter-spacing="9">STERLING JEWELLERS · BESPOKE ATELIER</text>
+</svg>

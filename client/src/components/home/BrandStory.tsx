@@ -8,7 +8,7 @@ export default function BrandStory() {
       <div className="relative md:w-1/2 overflow-hidden bg-gray-100" style={{ minHeight: '500px' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&h=900&fit=crop"
+          src="https://res.cloudinary.com/dzwnc3gkw/image/upload/v1780913682/in_trend_new-1920x550_stcsxu.jpg"
           alt="Crafted With Intention"
           loading="lazy"
           className="w-full h-full object-cover absolute inset-0"

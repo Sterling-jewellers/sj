@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100" width="1800" height="1100">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e0e0e"/>
+      <stop offset="50%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#050518"/>
+    </linearGradient>
+    <linearGradient id="gold2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8C96A"/>
+      <stop offset="100%" stop-color="#A07830"/>
+    </linearGradient>
+    <radialGradient id="diamondGlow" cx="50%" cy="45%" r="35%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="sparkleBlur">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1800" height="1100" fill="url(#bg2)"/>
+  <rect width="1800" height="1100" fill="url(#diamondGlow)"/>
+
+  <!-- Subtle grid pattern -->
+  <pattern id="grid" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+    <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-opacity="0.05"/>
+  </pattern>
+  <rect width="1800" height="1100" fill="url(#grid)"/>
+
+  <!-- Outer frame -->
+  <rect x="60" y="50" width="1680" height="1000" fill="none" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.1"/>
+
+  <!-- Large central diamond (brilliant cut top view) -->
+  <!-- Table -->
+  <polygon points="900,250 990,310 990,420 900,480 810,420 810,310" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.6"/>
+  <!-- Crown facets -->
+  <line x1="900" y1="200" x2="900" y2="250" stroke="#ffffff" stroke-width="1" stroke-opacity="0.4"/>
+  <polygon points="900,200 990,310 900,250" fill="#ffffff" fill-opacity="0.04"/>
+  <polygon points="900,200 810,310 900,250" fill="#ffffff" fill-opacity="0.03"/>
+  <polygon points="990,310 1060,420 990,420" fill="#ffffff" fill-opacity="0.05"/>
+  <polygon points="810,310 740,420 810,420" fill="#ffffff" fill-opacity="0.04"/>
+  <polygon points="900,200 1060,420 990,310" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.25"/>
+  <polygon points="900,200 740,420 810,310" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.25"/>
+  <!-- Girdle extensions -->
+  <line x1="900" y1="200" x2="990" y2="310" stroke="#E8C96A" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="900" y1="200" x2="810" y2="310" stroke="#E8C96A" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="990" y1="310" x2="1060" y2="420" stroke="#E8C96A" stroke-width="0.5" stroke-opacity="0.3"/>
+  <line x1="810" y1="310" x2="740" y2="420" stroke="#E8C96A" stroke-width="0.5" stroke-opacity="0.3"/>
+  <!-- Pavilion hint -->
+  <polygon points="900,480 990,420 1060,420" fill="none" stroke="#E8C96A" stroke-width="0.8" stroke-opacity="0.35"/>
+  <polygon points="900,480 810,420 740,420" fill="none" stroke="#E8C96A" stroke-width="0.8" stroke-opacity="0.35"/>
+
+  <!-- Scattered small diamonds -->
+  <!-- left -->
+  <polygon points="350,380 380,350 410,380 380,410" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.3"/>
+  <line x1="380" y1="340" x2="380" y2="420" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.15"/>
+  <line x1="340" y1="380" x2="420" y2="380" stroke="#ffffff" stroke-width="0.4" stroke-opacity="0.15"/>
+  <!-- right -->
+  <polygon points="1390,320 1420,290 1450,320 1420,350" fill="none" stroke="#C9A84C" stroke-width="0.8" stroke-opacity="0.35"/>
+  <!-- bottom left -->
+  <polygon points="280,680 300,655 320,680 300,705" fill="none" stroke="#C9A84C" stroke-width="0.7" stroke-opacity="0.25"/>
+  <!-- bottom right -->
+  <polygon points="1480,700 1510,670 1540,700 1510,730" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.2"/>
+
+  <!-- Sparkle stars -->
+  <g filter="url(#sparkleBlur)" stroke-opacity="0.8">
+    <!-- Main sparkles around big diamond -->
+    <line x1="900" y1="155" x2="900" y2="185" stroke="#E8C96A" stroke-width="1.5"/>
+    <line x1="885" y1="170" x2="915" y2="170" stroke="#E8C96A" stroke-width="1.5"/>
+    <line x1="888" y1="158" x2="912" y2="182" stroke="#E8C96A" stroke-width="0.8"/>
+    <line x1="912" y1="158" x2="888" y2="182" stroke="#E8C96A" stroke-width="0.8"/>
+
+    <line x1="1085" y1="365" x2="1100" y2="380" stroke="#ffffff" stroke-width="1.2"/>
+    <line x1="1100" y1="365" x2="1085" y2="380" stroke="#ffffff" stroke-width="1.2"/>
+
+    <line x1="720" y1="460" x2="728" y2="468" stroke="#C9A84C" stroke-width="1"/>
+    <line x1="728" y1="460" x2="720" y2="468" stroke="#C9A84C" stroke-width="1"/>
+
+    <circle cx="900" cy="170" r="2" fill="#E8C96A"/>
+    <circle cx="1092" cy="372" r="1.5" fill="#ffffff"/>
+    <circle cx="724" cy="464" r="1.5" fill="#C9A84C"/>
+    <circle cx="560" cy="300" r="1.2" fill="#ffffff" stroke-opacity="0.4"/>
+    <circle cx="1240" cy="580" r="1.2" fill="#C9A84C" fill-opacity="0.5"/>
+  </g>
+
+  <!-- Horizontal gold rule -->
+  <line x1="750" y1="540" x2="1050" y2="540" stroke="#C9A84C" stroke-width="0.8" stroke-opacity="0.4"/>
+
+  <!-- Bottom rule -->
+  <line x1="820" y1="820" x2="980" y2="820" stroke="#C9A84C" stroke-width="0.8" stroke-opacity="0.3"/>
+
+  <!-- Wordmark -->
+  <text x="900" y="1010" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#C9A84C" fill-opacity="0.3" letter-spacing="9">STERLING JEWELLERS · LONDON</text>
+</svg>
