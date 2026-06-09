@@ -141,10 +141,30 @@ export default function HeroBanner() {
     return () => clearInterval(t);
   }, [advance, paused]);
 
+  // ── Server / first-paint guard ──────────────────────────────────────────
+  // The slider is 100% client-side (state, query data, event handlers).
+  // Returning a simple static block on the server prevents the hydration
+  // mismatch caused by the server HTML differing from the first client render.
+  if (!mounted) {
+    return (
+      <section
+        className="relative w-full bg-black"
+        style={{ height: '100svh', minHeight: '560px' }}
+      >
+        <div
+          className="absolute inset-0 bg-center bg-cover"
+          style={{ backgroundImage: `url('${SLIDE_CONFIG[0].fallback}')` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
+      </section>
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   return (
     <section
       className="relative w-full overflow-hidden bg-black select-none"
-      style={{ height: '100vh', minHeight: '600px' }}
+      style={{ height: '100svh', minHeight: '560px' }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -203,7 +223,7 @@ export default function HeroBanner() {
             </div>
 
             {/* Centre text */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+            <div className="absolute inset-0 flex flex-col items-center justify-center md:justify-center text-center px-6 pb-16 md:pb-0">
 
               <p className="font-sans text-[9px] tracking-[0.5em] uppercase text-white/55 mb-6"
                 style={{

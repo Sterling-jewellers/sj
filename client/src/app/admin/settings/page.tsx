@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Store, Mail, CreditCard, Package, Bell, Shield } from 'lucide-react';
+import { Store, Mail, CreditCard, Package, Bell, Shield, Star } from 'lucide-react';
+import { adminApi } from '@/lib/api';
 
 const TABS = [
   { id: 'store', label: 'Store', icon: Store },
   { id: 'email', label: 'Email', icon: Mail },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'shipping', label: 'Shipping', icon: Package },
+  { id: 'reviews', label: 'Reviews', icon: Star },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'security', label: 'Security', icon: Shield },
 ];
@@ -198,6 +200,10 @@ export default function AdminSettingsPage() {
             </div>
           )}
 
+          {activeTab === 'reviews' && (
+            <ReviewsSettings />
+          )}
+
           {activeTab === 'security' && (
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h2 className="font-semibold text-gray-900 mb-5">Security</h2>
@@ -226,17 +232,99 @@ export default function AdminSettingsPage() {
             </div>
           )}
 
-          <div className="mt-5 flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              Save Changes
-            </button>
-            {saved && <span className="text-sm text-green-600 font-medium">✓ Saved</span>}
-          </div>
+          {activeTab !== 'reviews' && (
+            <div className="mt-5 flex items-center gap-3">
+              <button
+                onClick={handleSave}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Save Changes
+              </button>
+              {saved && <span className="text-sm text-green-600 font-medium">✓ Saved</span>}
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Reviews Settings Panel ───────────────────────────────────────────────────
+function ReviewsSettings() {
+  const [seeding, setSeeding]   = useState(false);
+  const [result, setResult]     = useState<{ created?: number; skipped?: number; productsSeeded?: number } | null>(null);
+  const [error, setError]       = useState('');
+  const [perProduct, setPerProduct] = useState(8);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    setResult(null);
+    setError('');
+    try {
+      const res = await adminApi.seedReviews({ perProduct, clear: false });
+      setResult(res.data);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to seed reviews';
+      setError(msg);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-6">
+      <div>
+        <h2 className="font-semibold text-gray-900 mb-1">Product Reviews</h2>
+        <p className="text-sm text-gray-500">
+          Seed realistic verified-purchase reviews for all active products. Reviews are created with
+          <code className="mx-1 px-1 bg-gray-100 rounded text-xs">isApproved: true</code>
+          so they appear immediately on the live site.
+        </p>
+      </div>
+
+      <div className="border border-amber-100 bg-amber-50 rounded-lg p-4 text-sm text-amber-800">
+        <strong>Why aren&apos;t reviews showing?</strong><br/>
+        New products get reviews seeded automatically when imported from Hanron.
+        Existing products need a one-time seed. Click the button below to seed all active products at once.
+      </div>
+
+      <div className="flex items-end gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+            Reviews per product
+          </label>
+          <select
+            value={perProduct}
+            onChange={e => setPerProduct(Number(e.target.value))}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <option value={4}>4</option>
+            <option value={6}>6</option>
+            <option value={8}>8 (recommended)</option>
+            <option value={12}>12</option>
+          </select>
+        </div>
+        <button
+          onClick={handleSeed}
+          disabled={seeding}
+          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          {seeding ? 'Seeding...' : 'Seed Reviews for All Products'}
+        </button>
+      </div>
+
+      {result && (
+        <div className="border border-green-100 bg-green-50 rounded-lg p-4 text-sm text-green-800">
+          ✓ Done — seeded <strong>{result.created}</strong> reviews across{' '}
+          <strong>{result.productsSeeded}</strong> products ({result.skipped} skipped — already had reviews).
+        </div>
+      )}
+
+      {error && (
+        <div className="border border-red-100 bg-red-50 rounded-lg p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

@@ -5,13 +5,21 @@ export default function BrandStory() {
     <section className="flex flex-col md:flex-row">
 
       {/* ── Left: Editorial image ── */}
-      <div className="relative md:w-1/2 overflow-hidden bg-gray-100" style={{ minHeight: '500px' }}>
+      {/*
+        h-[340px] md:h-auto  — explicit height on mobile so the absolute image renders;
+                                on desktop the flex-row stretches this div to match the
+                                navy text column height automatically.
+        object-[75%_center]  — shifts the focal point right so the ring (at ~70% across
+                                the original 1920 px image) is centred in the cropped area
+                                on both desktop and mobile viewports.
+      */}
+      <div className="relative md:w-1/2 h-[340px] md:h-auto overflow-hidden bg-gray-900">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="https://res.cloudinary.com/dzwnc3gkw/image/upload/v1780913682/in_trend_new-1920x550_stcsxu.jpg"
           alt="Crafted With Intention"
           loading="lazy"
-          className="w-full h-full object-cover absolute inset-0"
+          className="absolute inset-0 w-full h-full object-cover object-[75%_center]"
         />
       </div>
 

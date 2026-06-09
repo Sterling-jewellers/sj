@@ -9,10 +9,9 @@ export const metadata: Metadata = {
   },
 };
 import FeaturedProducts from '@/components/home/FeaturedProducts';
-import PromoBanner from '@/components/home/PromoBanner';
 import Bestsellers from '@/components/home/Bestsellers';
 import WhyChooseUs from '@/components/home/WhyChooseUs';
-import Testimonials from '@/components/home/Testimonials';
+import TrustReviews from '@/components/home/TrustReviews';
 import InstagramGallery from '@/components/home/InstagramGallery';
 import PersonalizedBanner from '@/components/personalization/PersonalizedBanner';
 import ShopByOccasion from '@/components/home/ShopByOccasion';
@@ -26,11 +25,10 @@ export default function HomePage() {
       <HeroBanner />
       <ShopByOccasion />
       <FeaturedProducts />
-      <PromoBanner />
       <BrandStory />
       <Bestsellers />
       <WhyChooseUs />
-      <Testimonials />
+      <TrustReviews />
       <InstagramGallery />
     </>
   );

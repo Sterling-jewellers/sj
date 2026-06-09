@@ -911,55 +911,159 @@ router.post('/hanron/sync', asyncHandler(async (req: Request, res: Response) => 
     }
   }
 
+  // ── GROUP products by base name: combine metal variants & length variants ──────
+  // Hanron lists "9ct Y/G Figaro Chain 18 Inch", "9ct Y/G Figaro Chain 20 Inch",
+  // "9ct W/G Figaro Chain 18 Inch" as separate products.
+  // We group them into one product with multiple metalOptions and/or length variants.
+  //
+  // Grouping key = strip metal colour prefix + length/size suffix from the name,
+  // then combine within the same Hanron category.
+
+  function stripMetalAndSize(name: string): string {
+    return name
+      // Remove karat + metal colour prefix: "9ct Y/G", "18ct W/G", "9ct White Gold" etc.
+      .replace(/^\d{1,2}ct\s+(?:y\/g|w\/g|r\/g|yellow\s+gold|white\s+gold|rose\s+gold|silver|platinum)\s+/i, '')
+      // Remove trailing length/size: "18 Inch", "20\"", "18\"", "20mm", "22 Inches"
+      .replace(/\s+\d+\.?\d*\s*(?:inch(?:es)?|in|mm|cm|\")\s*$/i, '')
+      // Remove trailing ring size: " Size J", " Size N½"
+      .replace(/\s+(?:size\s+)?[A-Z][½¼¾]?\s*$/i, '')
+      .trim();
+  }
+
+  // Group by (category, strippedName)
+  const groups = new Map<string, typeof result.products>();
+  for (const p of result.products) {
+    const key = `${p.category}__${stripMetalAndSize(p.name).toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
+  }
+
+  // Build merged products — first product in group is the "primary"
+  type MergedProduct = typeof result.products[0] & {
+    allSizes: string[];
+    metalVariants: { metal: string; sku: string; imageUrl: string; price: number }[];
+  };
+
+  const mergedProducts: MergedProduct[] = [];
+  for (const group of groups.values()) {
+    const primary = group[0];
+    // Collect all unique sizes across the group
+    const allSizes = [...new Set(group.flatMap(p => p.sizes))].sort();
+    // Collect metal variants (each unique metal in the group)
+    const metalVariants = group.map(p => ({
+      metal:    p.metal,
+      sku:      p.sku,
+      imageUrl: p.images[0] || '',
+      price:    p.price,
+    }));
+    mergedProducts.push({
+      ...primary,
+      // Use the base name (without metal colour prefix) as the product name
+      name:         stripMetalAndSize(primary.name) || primary.name,
+      allSizes,
+      metalVariants,
+    });
+  }
+
   // Save to MongoDB — upsert on slug to avoid duplicates
   let created = 0, updated = 0;
   const saveErrors: string[] = [...result.errors];
 
-  for (const p of result.products) {
+  for (const p of mergedProducts) {
     try {
-      const metalParts = p.metal.split(' ');
-      const karat      = metalParts.find(x => x.includes('ct') || x.includes('k')) || '9ct';
-      const metalType  = metalParts.filter(x => x !== karat).join(' ').trim() || 'yellow-gold';
-
-      const metalTypeEnum = (['yellow-gold', 'white-gold', 'rose-gold', 'platinum', 'silver'] as const)
-        .includes(metalType as 'yellow-gold') ? metalType as 'yellow-gold' | 'white-gold' | 'rose-gold' | 'platinum' | 'silver'
-        : 'yellow-gold';
-
-      const karatEnum = (['9ct', '14ct', '18ct'] as const).includes(karat as '9ct') ? karat as '9ct' | '14ct' | '18ct' : '9ct';
-
-      // Resolve category for this product
+      // ── Resolve category ────────────────────────────────────────────────
       const resolvedCategoryId = defaultCategoryId || categoryIdCache[p.category] || Object.values(categoryIdCache)[0] || '';
       if (!resolvedCategoryId) {
         saveErrors.push(`SKU ${p.sku}: no category resolved for Hanron category "${p.category}"`);
         continue;
       }
 
-      // ── Upload image to Cloudinary (so production CDN never hits Hanron's CF) ──
-      const rawImageUrl = p.images[0] || '';
-      const hostedImage = rawImageUrl
-        ? await uploadHanronImageToCloudinary(rawImageUrl)
-        : '';
+      // ── Build metalOptions from all variants in the group ───────────────
+      // Each distinct metal colour/karat in the group becomes one metalOption.
+      const metalOptionsList: {
+        type: 'yellow-gold' | 'white-gold' | 'rose-gold' | 'platinum' | 'silver';
+        karat?: '9ct' | '14ct' | '18ct';
+        images: string[];
+        isDefault: boolean;
+        priceModifier: number;
+      }[] = [];
+
+      let primaryHostedImage = '';
+
+      for (let vi = 0; vi < p.metalVariants.length; vi++) {
+        const mv = p.metalVariants[vi];
+        const parts = mv.metal.split(' ');
+        const k     = parts.find(x => x.includes('ct') || x.includes('k')) || '9ct';
+        const mt    = parts.filter(x => x !== k).join(' ').trim() || 'yellow-gold';
+
+        const mType = (['yellow-gold','white-gold','rose-gold','platinum','silver'] as const)
+          .includes(mt as 'yellow-gold') ? mt as 'yellow-gold'|'white-gold'|'rose-gold'|'platinum'|'silver'
+          : 'yellow-gold';
+        const kType = (['9ct','14ct','18ct'] as const).includes(k as '9ct') ? k as '9ct'|'14ct'|'18ct' : '9ct';
+
+        // Upload image for this variant to Cloudinary
+        let variantImage = '';
+        try {
+          variantImage = mv.imageUrl ? await uploadHanronImageToCloudinary(mv.imageUrl) : '';
+        } catch { /* non-fatal */ }
+        if (vi === 0) primaryHostedImage = variantImage;
+
+        // Avoid exact duplicate metalOptions (same type+karat)
+        const isDupe = metalOptionsList.some(m => m.type === mType && m.karat === kType);
+        if (!isDupe) {
+          metalOptionsList.push({
+            type:          mType,
+            karat:         kType,
+            images:        variantImage ? [variantImage] : [],
+            isDefault:     vi === 0,
+            priceModifier: 0,
+          });
+        }
+      }
+
+      // Fallback if no metal options were built
+      if (metalOptionsList.length === 0) {
+        const parts  = p.metal.split(' ');
+        const k      = parts.find(x => x.includes('ct') || x.includes('k')) || '9ct';
+        const mt     = parts.filter(x => x !== k).join(' ').trim() || 'yellow-gold';
+        metalOptionsList.push({
+          type:          (['yellow-gold','white-gold','rose-gold','platinum','silver'] as const).includes(mt as 'yellow-gold') ? mt as 'yellow-gold'|'white-gold'|'rose-gold'|'platinum'|'silver' : 'yellow-gold',
+          karat:         (['9ct','14ct','18ct'] as const).includes(k as '9ct') ? k as '9ct'|'14ct'|'18ct' : '9ct',
+          images:        primaryHostedImage ? [primaryHostedImage] : [],
+          isDefault:     true,
+          priceModifier: 0,
+        });
+      }
+
+      const primaryMetal = metalOptionsList[0];
+      const karatEnum    = primaryMetal.karat || '9ct';
 
       // ── SEO fields ────────────────────────────────────────────────────────────
-      const metalLabel  = p.metal.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      // Build a human-readable metal label listing all available metals
+      const metalNames = metalOptionsList.map(m => {
+        const k = m.karat ? `${m.karat} ` : '';
+        const t = m.type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        return `${k}${t}`;
+      });
+      const metalLabel  = metalNames[0] || 'Gold';
       const catLabel    = HANRON_CAT_MAP[p.category]?.name || p.category;
-      const sizesText   = p.sizes.length ? ` Available in ring sizes ${p.sizes.slice(0, 6).join(', ')}${p.sizes.length > 6 ? ' and more' : ''}.` : '';
-      const priceText   = p.price ? ` From £${p.price.toFixed(2)}.` : '';
+      const allSizes    = p.allSizes;
+      const sizesText   = allSizes.length ? ` Available in sizes ${allSizes.slice(0, 8).join(', ')}${allSizes.length > 8 ? ' and more' : ''}.` : '';
       const gemLabel    = guessGemstone(p.name).replace('-', ' ');
+      const availMetals = metalNames.length > 1 ? ` Available in ${metalNames.join(', ')}.` : '';
 
       const metaTitle = `${p.name} | ${metalLabel} | Sterling Jewellers`
         .replace(/\s{2,}/g, ' ').slice(0, 70);
 
       const metaDescription = (
         `Buy the ${p.name} — a stunning ${metalLabel} piece from our ${catLabel} collection.` +
-        `${priceText}` +
         ` Ethically sourced, hallmarked fine jewellery with free UK delivery & free returns.` +
-        `${sizesText}`
+        `${sizesText}${availMetals}`
       ).slice(0, 160);
 
       const shortDescription = (
         `${p.name} crafted in ${metalLabel}. ` +
-        (gemLabel !== 'diamond' ? `Features beautiful ${gemLabel}. ` : '') +
+        (gemLabel ? `Features beautiful ${gemLabel}. ` : '') +
         `Part of our ${catLabel} collection — ethically sourced fine jewellery with free UK delivery.`
       ).slice(0, 200);
 
@@ -970,7 +1074,8 @@ router.post('/hanron/sync', asyncHandler(async (req: Request, res: Response) => 
 <h2>${p.name}</h2>
 <p>This exquisite <strong>${p.name}</strong> is expertly crafted in <strong>${metalLabel}</strong>, making it a perfect addition to any jewellery collection or a wonderful gift for a loved one.</p>
 ${purityText ? `<p><strong>Metal Purity:</strong> ${karatEnum} ${metalLabel} — ${purityText}. All pieces are fully hallmarked to UK assay standards.</p>` : ''}
-${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', ')}. Need a different size? Contact us for a free resize.</p>` : ''}
+${metalNames.length > 1 ? `<p><strong>Available metals:</strong> ${metalNames.join(', ')}.</p>` : ''}
+${allSizes.length ? `<p><strong>Available sizes:</strong> ${allSizes.join(', ')}. Need a different size? Contact us for a free resize.</p>` : ''}
 <h3>Why Choose Sterling Jewellers?</h3>
 <ul>
   <li>All pieces are fully hallmarked and ethically sourced</li>
@@ -980,7 +1085,6 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
 </ul>`.trim();
 
       const seoTags = buildTags(p);
-      // Add high-value search keywords
       seoTags.push(catLabel.toLowerCase(), metalLabel.toLowerCase(), `buy ${catLabel.toLowerCase()} online`, `${metalLabel.toLowerCase()} jewellery uk`);
       if (p.price) {
         if (p.price < 200)  seoTags.push('jewellery under £200', 'affordable gold jewellery');
@@ -989,11 +1093,12 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
       }
       const uniqueTags = [...new Set(seoTags)];
 
-      // ── Pricing: Hanron website price × 1.8 ──────────────────────────────
-      const basePrice = +(p.price * 1.8).toFixed(2);
+      // ── Pricing: use lowest price in group × 1.8 ─────────────────────────
+      const minPrice = Math.min(...p.metalVariants.map(mv => mv.price).filter(x => x > 0));
+      const basePrice = +((minPrice > 0 ? minPrice : p.price) * 1.8).toFixed(2);
 
-      // ── Availability: mark out-of-stock products as inactive ────────────
-      const isOutOfStock = p.availability === 'Out of Stock';
+      // ── Availability ────────────────────────────────────────────────────────
+      const isOutOfStock    = p.availability === 'Out of Stock';
       const stockPerVariant = isOutOfStock ? 0 : 10;
 
       const doc = {
@@ -1004,20 +1109,17 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
         metaTitle,
         metaDescription,
         basePrice,
-        images:           hostedImage ? [hostedImage] : ['/images/placeholder.jpg'],
-        metalOptions: [{
-          type:          metalTypeEnum,
-          karat:         karatEnum,
-          images:        hostedImage ? [hostedImage] : ['/images/placeholder.jpg'],
-          isDefault:     true,
-          priceModifier: 0,
-        }],
-        variants: (p.sizes || []).map((size: string) => ({
+        images:           primaryHostedImage ? [primaryHostedImage] : ['/images/placeholder.jpg'],
+        metalOptions:     metalOptionsList.map(m => ({
+          ...m,
+          images: m.images.length ? m.images : [primaryHostedImage || '/images/placeholder.jpg'],
+        })),
+        variants: allSizes.map((size: string) => ({
           size:  String(size),
           stock: stockPerVariant,
           sku:   `${p.sku}-${String(size).replace(/\s+/g, '')}`,
         })),
-        weightBySize: (p.sizes || []).map((size: string) => ({
+        weightBySize: allSizes.map((size: string) => ({
           size:        String(size),
           weightGrams: 3.5,
         })),
@@ -1028,7 +1130,7 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
         category:       resolvedCategoryId,
         source:         'hanron',
         isRingBuilder:  RING_BUILDER_CATS.has(p.category),
-        isActive:       !isOutOfStock,  // auto-unlist out-of-stock products
+        isActive:       !isOutOfStock,
         isNewArrival:   !isOutOfStock,
       };
 
@@ -1051,11 +1153,12 @@ ${p.sizes.length ? `<p><strong>Available ring sizes:</strong> ${p.sizes.join(', 
   }
 
   res.json({
-    success: true,
+    success:      true,
     created,
     updated,
-    errors: saveErrors,
-    total:  result.total,
+    errors:       saveErrors,
+    total:        result.total,           // raw Hanron products scraped
+    merged:       mergedProducts.length,  // products after variant grouping
   });
 }));
 
@@ -1204,7 +1307,8 @@ function guessGemstone(name: string): string {
   if (t.includes('ruby'))     return 'ruby';
   if (t.includes('emerald'))  return 'emerald';
   if (t.includes('pearl'))    return 'pearl';
-  return 'diamond';
+  // Default: no gemstone — chains, plain bands, and non-gem pieces get none
+  return '';
 }
 
 function guessSettingType(name: string): string {
@@ -1215,7 +1319,8 @@ function guessSettingType(name: string): string {
   if (t.includes('channel'))                        return 'channel';
   if (t.includes('tension'))                        return 'tension';
   if (t.includes('halo'))                           return 'halo';
-  return 'solitaire';
+  // Default: no setting — only set for ring products with a known style
+  return '';
 }
 
 function buildTags(p: { name: string; category: string; metal: string }): string[] {

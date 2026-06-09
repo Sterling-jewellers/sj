@@ -266,6 +266,36 @@ function DiamondShapeIcon({ shape, active, size = 24 }: { shape: string; active:
   </svg>;
 }
 
+// ─── Strip price mentions from AI-generated description HTML ──────────────────
+// Some older Hanron product descriptions contain "Price: £XXX" lines which
+// must never appear on the product page (price is shown in the price box above).
+function stripPriceFromHtml(html: string): string {
+  return (html || '')
+    // <p>Price: £345.91 — ...</p>
+    .replace(/<p[^>]*>\s*(?:<strong>)?Price:(?:<\/strong>)?\s*£[\d,\.]+[^<]*<\/p>/gi, '')
+    // <strong>Price:</strong> £345.91 inline
+    .replace(/<strong>Price:<\/strong>\s*£[\d,\.]+[^<]*/gi, '')
+    // Plain "Price: £345.91" text nodes
+    .replace(/Price:\s*£[\d,\.]+[^\n<]*/gi, '')
+    .trim();
+}
+
+// ─── Check if a product truly has a displayable gemstone ─────────────────────
+// Prevents chains, plain bands etc. (whose gemstone was incorrectly set to
+// 'diamond' by older scraper logic) from showing the diamond/stone section.
+function hasRealGemstone(product: { gemstone?: string; name: string }): boolean {
+  if (!product.gemstone) return false;
+  const n = product.name.toLowerCase();
+  const g = product.gemstone;
+  if (g === 'diamond')        return n.includes('diamond') || n.includes('brilliant') || n.includes('solitaire');
+  if (g === 'cubic-zirconia') return n.includes('cz') || n.includes('zirconia');
+  if (g === 'sapphire')       return n.includes('sapphire');
+  if (g === 'ruby')           return n.includes('ruby');
+  if (g === 'emerald')        return n.includes('emerald');
+  if (g === 'pearl')          return n.includes('pearl');
+  return false;
+}
+
 // ─── Live pricing formula ─────────────────────────────────────────────────────
 type ProductExt = IProduct & { weightBySize?: { size: string; weightGrams: number }[]; bandStyle?: string; shankWidth?: string; competitorPrice?: number; sideImageUrl?: string; lifestyleImageUrl?: string };
 
@@ -976,7 +1006,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       </div>
                     ))}
                   </div>
-                  {product.gemstone && (
+                  {hasRealGemstone(product) && (
                     <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
                       <Gem size={12} className="text-gold-500 flex-shrink-0" />
                       <span className="text-xs font-sans text-charcoal capitalize">{product.gemstone === 'cubic-zirconia' ? 'Cubic Zirconia (CZ)' : product.gemstone}</span>
@@ -1020,7 +1050,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           </div>
           <div className="py-10">
             {activeTab === 'description' && (
-              <div className="max-w-2xl prose prose-sm font-sans text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription }} />
+              <div className="max-w-2xl prose prose-sm font-sans text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: stripPriceFromHtml(product.description || product.shortDescription) }} />
             )}
             {activeTab === 'details' && (
               <div className="max-w-2xl space-y-10">
@@ -1055,8 +1085,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
 
-                {/* Gemstone & Diamond Details */}
-                {product.gemstone && (
+                {/* Gemstone & Diamond Details — only show if product actually has the stone */}
+                {hasRealGemstone(product) && (
                   <div>
                     <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Stone Details</h3>
                     <div className="grid grid-cols-2 gap-3">
@@ -1097,31 +1127,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 {/* About this piece */}
                 <div>
                   <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">About This Piece</h3>
-                  <div className="prose prose-sm font-sans text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: product.description || product.shortDescription }} />
-                </div>
-
-                {/* Full spec table */}
-                <div>
-                  <h3 className="text-[10px] font-sans font-bold tracking-[0.2em] uppercase text-gold-600 mb-4">Full Specifications</h3>
-                  <dl className="divide-y divide-gray-100">
-                    {[
-                      { label: 'Style',        value: product.style },
-                      { label: 'Setting',      value: product.settingType ? (SETTING_LABELS[product.settingType] || product.settingType) : undefined },
-                      { label: 'Band Style',   value: product.bandStyle ? (BAND_LABELS[product.bandStyle] || product.bandStyle) : undefined },
-                      { label: 'Shank Width',  value: product.shankWidth ? (SHANK_LABELS[product.shankWidth] || product.shankWidth) : undefined },
-                      { label: 'Gemstone',     value: product.gemstone },
-                      { label: 'Weight',       value: product.weight ? `${product.weight}g` : undefined },
-                      { label: 'Engravable',   value: product.isEngravable ? 'Yes — free personalisation' : 'No' },
-                      { label: 'Hallmarked',   value: 'Yes — UK assay office hallmark' },
-                      { label: 'Origin',       value: 'Handcrafted in the UK' },
-                      { label: 'Delivery',     value: `${product.deliveryDays} working days` },
-                    ].filter(d => d.value).map(({ label, value }) => (
-                      <div key={label} className="flex py-3">
-                        <dt className="w-44 text-[11px] font-sans font-medium tracking-wider uppercase text-gray-400">{label}</dt>
-                        <dd className="text-sm font-sans text-charcoal capitalize">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                  <div className="prose prose-sm font-sans text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: stripPriceFromHtml(product.description || product.shortDescription) }} />
                 </div>
 
                 {/* Craftsmanship */}

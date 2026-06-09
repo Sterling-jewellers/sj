@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ProductCard from '@/components/product/ProductCard';
-import { productsApi } from '@/lib/api';
-import { IProduct } from '@/types';
+import { categoriesApi, productsApi } from '@/lib/api';
+import { ICategory, IProduct } from '@/types';
 import Link from 'next/link';
 import { getPersonalizationScore, isReturningVisitor, getTopStyles, getTopMetals } from '@/lib/personalization';
 
@@ -25,6 +25,9 @@ interface PersonalisedLabel {
   sub: string | null;
 }
 
+// Show products from these category slugs (engagement rings section)
+const FEATURED_SLUGS = ['engagement-rings', 'ladies-rings', 'gents-rings'];
+
 export default function FeaturedProducts() {
   const [label, setLabel]       = useState<PersonalisedLabel>({
     eyebrow: 'Handpicked For You',
@@ -34,20 +37,37 @@ export default function FeaturedProducts() {
   const [sorted, setSorted]     = useState<IProduct[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['featured-products'],
-    queryFn: () => productsApi.getFeatured(),
+  // ── Step 1: fetch all categories ────────────────────────────────────────────
+  const { data: catData } = useQuery({
+    queryKey: ['all-categories'],
+    queryFn: () => categoriesApi.getAll(),
+    staleTime: 600_000,
   });
 
-  const products: IProduct[] = data?.data || [];
+  const allCats: ICategory[] = catData?.data || [];
 
-  // Runs once on the client — reads localStorage preferences
+  // ── Step 2: find the first matching category that exists in the DB ───────────
+  const targetCat = FEATURED_SLUGS
+    .map(slug => allCats.find(c => c.slug === slug))
+    .find(Boolean);
+
+  // ── Step 3: fetch products for that category ─────────────────────────────────
+  const { data: prodData, isLoading: prodLoading } = useQuery({
+    queryKey: ['products-featured-cat', String(targetCat?._id)],
+    queryFn: () => productsApi.getAll({ category: String(targetCat!._id), limit: 8 }),
+    enabled: !!targetCat?._id,
+    staleTime: 300_000,
+  });
+
+  const isLoading = !catData || (!!targetCat && prodLoading);
+  const products: IProduct[] = prodData?.data?.products || [];
+
+  // Personalisation label
   useEffect(() => {
     setHydrated(true);
-
-    const returning   = isReturningVisitor();
-    const topStyles   = getTopStyles(2);
-    const topMetals   = getTopMetals(1);
+    const returning = isReturningVisitor();
+    const topStyles = getTopStyles(2);
+    const topMetals = getTopMetals(1);
 
     if (returning && topStyles.length > 0) {
       const styleName = topStyles[0].replace(/-/g, ' ');
@@ -63,10 +83,9 @@ export default function FeaturedProducts() {
         sub: 'Our most-loved pieces this week',
       });
     }
-    // else: first-time visitor — keep default label
   }, []);
 
-  // Re-sort products by personalisation score whenever products or hydration changes
+  // Re-sort by personalisation score
   useEffect(() => {
     if (!products.length) return;
     const scored = [...products]
@@ -80,11 +99,15 @@ export default function FeaturedProducts() {
       }))
       .sort((a, b) => b.score - a.score)
       .map(({ product }) => product);
-
     setSorted(scored);
   }, [products, hydrated]);
 
   const displayProducts = sorted.length > 0 ? sorted : products;
+
+  // Don't render if no products
+  if (!isLoading && displayProducts.length === 0) return null;
+
+  const catSlug = targetCat?.slug || 'engagement-rings';
 
   return (
     <section className="py-28 bg-white">
@@ -101,7 +124,7 @@ export default function FeaturedProducts() {
             )}
           </div>
           <Link
-            href="/products?isFeatured=true"
+            href={`/category/${catSlug}`}
             className="hidden md:flex items-center gap-1 text-xs font-sans tracking-widest uppercase text-navy hover:text-black font-medium transition-colors"
           >
             View All <span className="group-hover:translate-x-0.5 transition-transform">→</span>
@@ -120,8 +143,8 @@ export default function FeaturedProducts() {
 
         {/* Mobile view all */}
         <div className="text-center mt-10">
-          <Link href="/products" className="btn-outline-gold inline-block">
-            View All Products
+          <Link href={`/category/${catSlug}`} className="btn-outline-gold inline-block">
+            View All Engagement Rings
           </Link>
         </div>
       </div>

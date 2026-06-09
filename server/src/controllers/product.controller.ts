@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import Product from '../models/Product.model';
+import Category from '../models/Category.model';
 
 export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1;
@@ -10,6 +11,28 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   const query: Record<string, unknown> = { isActive: true };
 
   if (req.query.category) query.category = req.query.category;
+
+  // categorySlug — single slug: resolve to _id; return empty if slug not found
+  if (req.query.categorySlug) {
+    const cat = await Category.findOne({ slug: req.query.categorySlug as string }).lean();
+    if (!cat) {
+      res.json({ products: [], total: 0, page: 1, pages: 0 });
+      return;
+    }
+    query.category = cat._id;
+  }
+
+  // categorySlugs — comma-separated slugs: resolve all to _ids; return empty if none found
+  if (req.query.categorySlugs) {
+    const slugs = (req.query.categorySlugs as string).split(',').map(s => s.trim()).filter(Boolean);
+    const cats = await Category.find({ slug: { $in: slugs } }).lean();
+    if (!cats.length) {
+      res.json({ products: [], total: 0, page: 1, pages: 0 });
+      return;
+    }
+    query.category = { $in: cats.map(c => c._id) };
+  }
+
   if (req.query.minPrice || req.query.maxPrice) {
     query.basePrice = {};
     if (req.query.minPrice) (query.basePrice as Record<string, number>).$gte = Number(req.query.minPrice);
