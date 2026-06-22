@@ -99,33 +99,107 @@ export const metadata: Metadata = {
 const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
+  '@id': `${SITE_URL}/#website`,
   name: 'Sterling Jewellers',
   url: SITE_URL,
+  description: 'Discover exquisite engagement rings, wedding bands, and fine jewellery. Handcrafted in the UK with ethically sourced diamonds and precious metals.',
+  inLanguage: 'en-GB',
   potentialAction: {
     '@type': 'SearchAction',
     target: {
       '@type': 'EntryPoint',
-      urlTemplate: `${SITE_URL}/products?q={search_term_string}`,
+      urlTemplate: `${SITE_URL}/products?search={search_term_string}`,
     },
     'query-input': 'required name=search_term_string',
   },
+};
+
+// SiteNavigationElement — tells Google which pages are the main navigation entries.
+// These are the links most likely to appear as sitelinks in search results.
+const siteNavSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Main Navigation',
+  itemListElement: [
+    {
+      '@type': 'SiteNavigationElement',
+      position: 1,
+      name: 'Engagement Rings',
+      description: 'Handcrafted engagement ring settings in 9ct and 18ct gold',
+      url: `${SITE_URL}/category/engagement-rings`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 2,
+      name: 'Wedding Bands',
+      description: 'Classic and diamond-set wedding bands in gold and platinum',
+      url: `${SITE_URL}/category/wedding-bands`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 3,
+      name: 'Gold Earrings',
+      description: 'Stunning gold earrings — studs, hoops, drops and dangles',
+      url: `${SITE_URL}/category/gold-earrings`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 4,
+      name: 'Gold Chains',
+      description: 'Fine gold chains in a range of styles, lengths and weights',
+      url: `${SITE_URL}/category/gold-chains`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 5,
+      name: 'Diamonds',
+      description: 'Browse GIA and IGI certified loose diamonds',
+      url: `${SITE_URL}/diamonds`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 6,
+      name: 'Create Your Ring',
+      description: 'Design a bespoke engagement ring with your choice of diamond and setting',
+      url: `${SITE_URL}/ring-builder`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 7,
+      name: 'Book Appointment',
+      description: 'Visit our showroom — book a private jewellery consultation',
+      url: `${SITE_URL}/book-appointment`,
+    },
+    {
+      '@type': 'SiteNavigationElement',
+      position: 8,
+      name: 'All Jewellery',
+      description: 'Shop our full range of fine jewellery',
+      url: `${SITE_URL}/products`,
+    },
+  ],
 };
 
 // Organisation / LocalBusiness schema — helps Google show rich results
 const orgSchema = {
   '@context': 'https://schema.org',
   '@type': ['JewelryStore', 'LocalBusiness'],
+  '@id': `${SITE_URL}/#organization`,
   name: 'Sterling Jewellers',
+  alternateName: 'Sterling Jewellers Ltd',
   url: SITE_URL,
-  logo: `${SITE_URL}/logo.png`,
+  logo: {
+    '@type': 'ImageObject',
+    url: `${SITE_URL}/android-chrome-512x512.png`,
+    width: 512,
+    height: 512,
+  },
   image: `${SITE_URL}/og-image.jpg`,
   description: 'Fine jewellery and bespoke engagement rings. Ethically sourced, handcrafted in the UK.',
   foundingDate: '2018',
   address: {
     '@type': 'PostalAddress',
-    streetAddress: '48 Bond Street',
     addressLocality: 'London',
-    postalCode: 'W1S 1RB',
     addressCountry: 'GB',
   },
   telephone: '+447429065954',
@@ -148,10 +222,9 @@ const orgSchema = {
     'https://www.instagram.com/sterlingjewellers',
     'https://www.facebook.com/sterlingjewellers',
   ],
-  priceRange: '£££',
+  priceRange: '££-£££',
   currenciesAccepted: 'GBP',
   paymentAccepted: 'Cash, Credit Card, Debit Card',
-  hasMap: 'https://maps.google.com/?q=48+Bond+Street,London,W1S+1RB',
 };
 
 const GA4_ID = 'G-74J7PQ8E6W';
@@ -161,6 +234,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en-GB" className={`${lora.variable} ${gantari.variable}`}>
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavSchema) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       </head>
       <body>

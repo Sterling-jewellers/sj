@@ -30,15 +30,27 @@ type CategoryEntry = {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ── Static pages ──────────────────────────────────────────────────────────
   const staticPages: MetadataRoute.Sitemap = [
-    { url: BASE_URL,                         lastModified: new Date(), changeFrequency: 'daily',   priority: 1.0 },
-    { url: `${BASE_URL}/products`,           lastModified: new Date(), changeFrequency: 'daily',   priority: 0.9 },
-    { url: `${BASE_URL}/diamonds`,           lastModified: new Date(), changeFrequency: 'daily',   priority: 0.8 },
-    { url: `${BASE_URL}/about`,              lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${BASE_URL}/contact`,            lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${BASE_URL}/size-guide`,         lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.4 },
-    { url: `${BASE_URL}/shipping-returns`,   lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.3 },
-    { url: `${BASE_URL}/privacy`,            lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.2 },
-    { url: `${BASE_URL}/terms`,              lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.2 },
+    // Core — highest priority (sitelinks candidates)
+    { url: BASE_URL,                              lastModified: new Date(), changeFrequency: 'daily',   priority: 1.0 },
+    { url: `${BASE_URL}/products`,                lastModified: new Date(), changeFrequency: 'daily',   priority: 0.9 },
+    { url: `${BASE_URL}/diamonds`,                lastModified: new Date(), changeFrequency: 'daily',   priority: 0.9 },
+    { url: `${BASE_URL}/ring-builder`,            lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE_URL}/book-appointment`,        lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
+    // Key category pages — also sitelinks candidates
+    { url: `${BASE_URL}/category/engagement-rings`,  lastModified: new Date(), changeFrequency: 'daily',   priority: 0.9 },
+    { url: `${BASE_URL}/category/wedding-bands`,     lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.8 },
+    { url: `${BASE_URL}/category/gold-earrings`,     lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.8 },
+    { url: `${BASE_URL}/category/gold-chains`,       lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.8 },
+    { url: `${BASE_URL}/category/gold-bracelets`,    lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.7 },
+    { url: `${BASE_URL}/category/gold-pendants`,     lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.7 },
+    { url: `${BASE_URL}/category/lab-grown-diamonds`,lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.7 },
+    // Info pages
+    { url: `${BASE_URL}/about`,                   lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${BASE_URL}/contact`,                 lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${BASE_URL}/size-guide`,              lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.4 },
+    { url: `${BASE_URL}/shipping-returns`,        lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.3 },
+    { url: `${BASE_URL}/privacy`,                 lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.2 },
+    { url: `${BASE_URL}/terms`,                   lastModified: new Date(), changeFrequency: 'yearly',  priority: 0.2 },
   ];
 
   // ── Dynamic product pages (includes image data for Google Image Search) ───
